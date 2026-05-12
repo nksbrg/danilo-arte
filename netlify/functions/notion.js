@@ -2,10 +2,15 @@ exports.handler = async function (event) {
   const NOTION_TOKEN = process.env.NOTION_TOKEN;
   const NOTION_DB    = process.env.NOTION_DATABASE_ID;
 
+  // Solo GET e POST permessi
+  if (event.httpMethod !== "GET" && event.httpMethod !== "POST") {
+    return { statusCode: 405, body: "Method Not Allowed" };
+  }
+
   if (!NOTION_TOKEN || !NOTION_DB) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Variabili d'ambiente mancanti" }),
+      body: JSON.stringify({ error: "Configurazione mancante" }),
     };
   }
 
@@ -29,18 +34,37 @@ exports.handler = async function (event) {
       }
     );
 
+    if (!response.ok) {
+      return {
+        statusCode: 502,
+        body: JSON.stringify({ error: "Errore comunicazione con Notion" }),
+      };
+    }
+
     const data = await response.json();
+
+    if (!data.results) {
+      return {
+        statusCode: 502,
+        body: JSON.stringify({ error: "Risposta Notion non valida" }),
+      };
+    }
 
     const opere = data.results.map((page) => {
       const props = page.properties;
+      const immagine = props.Immagine?.url ||
+                       props.Immagine?.files?.[0]?.file?.url ||
+                       props.Immagine?.files?.[0]?.external?.url || null;
+
+      // Valida che il link immagine sia un URL Cloudinary o HTTPS valido
+      const immagineValidata = immagine && immagine.startsWith("https://") ? immagine : null;
+
       return {
         id: page.id,
         titolo: props.Titolo?.title?.[0]?.plain_text || "Senza titolo",
         anno:   props.Anno?.number || null,
         tecnica: props.Tecnica?.rich_text?.[0]?.plain_text || "",
-        immagine: props.Immagine?.url ||
-                  props.Immagine?.files?.[0]?.file?.url ||
-                  props.Immagine?.files?.[0]?.external?.url || null,
+        immagine: immagineValidata,
       };
     });
 
@@ -49,13 +73,16 @@ exports.handler = async function (event) {
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=60", // cache 60 secondi
       },
       body: JSON.stringify(opere),
     };
   } catch (err) {
+    // Non esporre dettagli dell'errore al client
+    console.error("Notion function error:", err.message);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: err.message }),
+      body: JSON.stringify({ error: "Errore interno del server" }),
     };
   }
 };
