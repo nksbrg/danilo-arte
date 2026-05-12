@@ -29,11 +29,13 @@
   .nav-links a:hover::after { width:100%; }
   .hamburger { display:none; flex-direction:column; gap:5px; cursor:pointer; background:none; border:none; }
   .hamburger span { display:block; width:28px; height:3px; background:var(--black); border-radius:2px; }
-  .mobile-menu { display:none; position:fixed; inset:0; background:var(--yellow); z-index:99; flex-direction:column; align-items:center; justify-content:center; gap:36px; border:4px solid var(--black); }
+  .mobile-menu { display:none; position:fixed; inset:0; background:var(--yellow); z-index:110; flex-direction:column; border:4px solid var(--black); padding:0; overflow:hidden; }
   .mobile-menu.open { display:flex; }
-  .mobile-menu a { font-family:'Boogaloo',cursive; font-size:3rem; color:var(--black); text-decoration:none; }
-  .mobile-menu a:hover { color:var(--red); }
-  .mobile-menu-close { position:absolute; top:20px; right:28px; font-size:2.5rem; cursor:pointer; font-family:'Boogaloo',cursive; }
+  .mobile-menu-close { position:fixed; top:max(14px, env(safe-area-inset-top)); right:max(18px, env(safe-area-inset-right)); z-index:101; width:48px; height:48px; padding:0; margin:0; border:3px solid var(--black); background:var(--cream); font-size:1.75rem; line-height:1; cursor:pointer; font-family:'Nunito',sans-serif; font-weight:900; color:var(--black); display:flex; align-items:center; justify-content:center; box-shadow:3px 3px 0 var(--black); }
+  .mobile-menu-close:hover { background:var(--red); color:var(--cream); border-color:var(--black); }
+  .mobile-menu-links { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:clamp(24px,6vh,36px); padding:72px 24px 40px; overflow-y:auto; width:100%; }
+  .mobile-menu-links a { font-family:'Boogaloo',cursive; font-size:clamp(2rem,9vw,3rem); color:var(--black); text-decoration:none; }
+  .mobile-menu-links a:hover { color:var(--red); }
 
   /* HERO */
   .hero { min-height:100vh; padding:120px 40px 80px; display:grid; grid-template-columns:1fr 1fr; gap:60px; align-items:center; position:relative; overflow:hidden; }
@@ -132,6 +134,7 @@
   .atelier-actions { display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-bottom:0; }
 
   .contact-form { display:flex; flex-direction:column; gap:16px; text-align:left; }
+  .form-honeypot { position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }
   .form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   .form-field { display:flex; flex-direction:column; gap:6px; }
   .form-field label { font-weight:900; font-size:0.85rem; text-transform:uppercase; letter-spacing:1px; }
@@ -175,8 +178,8 @@
       flex:1 1 auto;
       min-width:0;
       margin-right:8px;
-      font-size:clamp(0.75rem,3.4vw,1.1rem);
-      line-height:1.12;
+      font-size:clamp(1.05rem,5vw,1.5rem);
+      line-height:1.15;
       white-space:normal;
       max-width:calc(100vw - 68px);
     }
@@ -194,7 +197,7 @@
     .gallery { columns:1; }
     .hero-title { font-size:3rem; }
     .mosaic-grid { grid-template-rows:repeat(3,100px); gap:6px; }
-    .nav-logo { font-size:clamp(0.7rem,3.6vw,0.95rem); max-width:calc(100vw - 60px); }
+    .nav-logo { font-size:clamp(1rem,5.2vw,1.35rem); max-width:calc(100vw - 58px); }
   }
 </style>
 </head>
@@ -214,11 +217,13 @@
 </nav>
 
 <div class="mobile-menu" id="mobileMenu">
-  <span class="mobile-menu-close" id="menuClose">✕</span>
-  <a href="#about" onclick="closeMobileMenu()">Chi sono</a>
-  <a href="#opere" onclick="closeMobileMenu()">Opere</a>
-  <a href="#contatti" onclick="closeMobileMenu()">Contatti</a>
-  <a href="#atelier" onclick="closeMobileMenu()">Atelier</a>
+  <button type="button" class="mobile-menu-close" id="menuClose" aria-label="Chiudi menu">×</button>
+  <div class="mobile-menu-links">
+    <a href="#about" onclick="closeMobileMenu()">Chi sono</a>
+    <a href="#opere" onclick="closeMobileMenu()">Opere</a>
+    <a href="#contatti" onclick="closeMobileMenu()">Contatti</a>
+    <a href="#atelier" onclick="closeMobileMenu()">Atelier</a>
+  </div>
 </div>
 
 <section class="hero" id="home">
@@ -314,23 +319,34 @@
   <div class="contatti-form-area">
     <div class="contatti-inner">
       <p class="form-strip-lead reveal">Compila il modulo qui sotto: ti rispondo appena posso.</p>
-      <div class="contact-form reveal reveal-delay-1">
+      <form
+        class="contact-form reveal reveal-delay-1"
+        name="contatti"
+        method="POST"
+        data-netlify="true"
+        netlify-honeypot="campo_nascosto"
+        action="/thanks.html"
+      >
+        <input type="hidden" name="form-name" value="contatti">
+        <p class="form-honeypot" aria-hidden="true">
+          <label>Lascia vuoto: <input name="campo_nascosto" type="text" tabindex="-1" autocomplete="off"></label>
+        </p>
         <div class="form-row">
           <div class="form-field">
-            <label>Nome</label>
-            <input type="text" placeholder="Il tuo nome">
+            <label for="contatto-nome">Nome</label>
+            <input id="contatto-nome" name="nome" type="text" placeholder="Il tuo nome" required maxlength="120" autocomplete="name">
           </div>
           <div class="form-field">
-            <label>Email</label>
-            <input type="email" placeholder="tua@email.com">
+            <label for="contatto-email">Email</label>
+            <input id="contatto-email" name="email" type="email" placeholder="tua@email.com" required maxlength="254" autocomplete="email">
           </div>
         </div>
         <div class="form-field">
-          <label>Messaggio</label>
-          <textarea placeholder="Dimmi tutto..."></textarea>
+          <label for="contatto-messaggio">Messaggio</label>
+          <textarea id="contatto-messaggio" name="messaggio" placeholder="Dimmi tutto..." required maxlength="5000"></textarea>
         </div>
-        <button type="button" class="btn btn-primary btn-submit">Manda il messaggio ✉️</button>
-      </div>
+        <button type="submit" class="btn btn-primary btn-submit">Manda il messaggio ✉️</button>
+      </form>
     </div>
   </div>
 </section>
@@ -341,10 +357,10 @@
     <p class="atelier-invite reveal">Se passi da Arona, passa anche da me: l'atelier è in Via Bottelli, il caffè lo offro io (quando c'è).</p>
     <p class="atelier-address">📍 Via Bottelli 42 · 28041 Arona (NO)</p>
     <div class="atelier-map-wrap reveal reveal-delay-1">
-      <iframe title="Mappa — Atelier Via Bottelli 42, Arona" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.openstreetmap.org/export/embed.html?bbox=8.5490%2C45.7525%2C8.5655%2C45.7595&amp;layer=mapnik&amp;marker=45.7560%2C8.5572"></iframe>
+      <iframe title="Mappa — Atelier Via Bottelli 42, Arona" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.openstreetmap.org/export/embed.html?bbox=8.5564%2C45.7588%2C8.5624%2C45.7648&amp;layer=mapnik&amp;marker=45.7617791%2C8.5594225"></iframe>
     </div>
     <div class="atelier-actions reveal reveal-delay-2">
-      <a href="https://www.google.com/maps/search/?api=1&amp;query=Via+Bottelli+42,+28041+Arona+NO+Italia" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">Apri in Google Maps</a>
+      <a href="https://www.google.com/maps/search/?api=1&amp;query=45.7617791%2C8.5594225" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">Apri in Google Maps</a>
     </div>
   </div>
 </section>

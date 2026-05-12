@@ -95,6 +95,26 @@ Per RIORDINARE: cambia il numero in "Ordine"
 
 
 ----------------------------------------------------
+PARTE 3b — MODULO CONTATTI (email a Danilo)
+----------------------------------------------------
+Il modulo in home invia tramite **Netlify Forms** (antispam: campo
+honeypot nascosto + filtri Netlify).
+
+Dopo ogni deploy con il modulo aggiornato:
+
+1. Netlify → il tuo sito → **Forms**
+2. Dovresti vedere il form **"contatti"**
+3. **Settings / Notifications** (o "Form notifications"):
+   aggiungi notifica email verso **danilo@matergaia.org**
+4. Salva
+
+Le richieste restano anche nel pannello **Forms → Submissions**
+(backup se l'email non arriva).
+
+La pagina **thanks.html** si apre dopo l'invio con messaggio di ringraziamento.
+
+
+----------------------------------------------------
 PARTE 3 — COME MODIFICARE I TESTI DEL SITO
 ----------------------------------------------------
 I testi (bio, hero, contatti) sono nel file index.html.
@@ -115,6 +135,7 @@ STRUTTURA DEI FILE
 ----------------------------------------------------
 danilo-site/
 ├── index.html                  ← il sito
+├── thanks.html                 ← dopo invio modulo contatti
 ├── netlify.toml                ← configurazione Netlify
 ├── netlify/
 │   └── functions/
