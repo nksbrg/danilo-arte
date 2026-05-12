@@ -340,17 +340,17 @@
       }
 
       gallery.innerHTML = opere.map(op => `
-        <div class="gallery-item reveal" onclick="openLightbox('${op.immagine}', '${op.titolo}', '${[op.anno, op.tecnica].filter(Boolean).join(' · ')}')">
-          <img src="${op.immagine}" alt="${op.titolo}" loading="lazy">
-          <div class="gallery-overlay">
-            <div>
-              <div class="gallery-overlay-text">${op.titolo}</div>
-              ${op.anno || op.tecnica ? `<div class="gallery-overlay-meta">${[op.anno, op.tecnica].filter(Boolean).join(' · ')}</div>` : ''}
-            </div>
-          </div>
-        </div>
-      `).join('');
-
+        gallery.innerHTML = opere.map(op => {
+        const meta = [op.anno, op.tecnica].filter(Boolean).join(' · ');
+        const metaHtml = meta ? '<div class="gallery-overlay-meta">' + meta + '</div>' : '';
+        return '<div class="gallery-item reveal" onclick="openLightbox(\'' + op.immagine + '\', \'' + op.titolo + '\', \'' + meta + '\')">'
+          + '<img src="' + op.immagine + '" alt="' + op.titolo + '" loading="lazy">'
+          + '<div class="gallery-overlay"><div>'
+          + '<div class="gallery-overlay-text">' + op.titolo + '</div>'
+          + metaHtml
+          + '</div></div></div>';
+      }).join('');
+      
       // Ri-osserva gli elementi appena creati
       gallery.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 
