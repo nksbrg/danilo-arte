@@ -1,0 +1,136 @@
+====================================================
+  COME PUBBLICARE E AGGIORNARE IL SITO DI DANILO
+====================================================
+
+Questo file spiega come mettere online il sito e come
+Danilo può aggiungere opere in autonomia da Notion.
+
+----------------------------------------------------
+PARTE 1 — SETUP INIZIALE (una volta sola, ~20 minuti)
+----------------------------------------------------
+
+PASSO 1 — Crea il database Notion
+----------------------------------
+1. Apri Notion (notion.so) e crea una nuova pagina
+2. Aggiungi un database a tabella con queste colonne:
+   - "Titolo"      → tipo: Titolo (già presente)
+   - "Immagine"    → tipo: File e media
+   - "Tecnica"     → tipo: Testo
+   - "Anno"        → tipo: Numero
+   - "Ordine"      → tipo: Numero (per ordinare le opere)
+   - "Pubblicato"  → tipo: Casella di spunta ✓
+
+3. Copia l'ID del database dall'URL:
+   notion.so/WORKSPACE/[QUESTO-E-L-ID]?v=...
+   Salvalo — ti serve dopo.
+
+
+PASSO 2 — Crea l'integrazione Notion
+--------------------------------------
+1. Vai su https://www.notion.so/my-integrations
+2. Clicca "+ Nuova integrazione"
+3. Dai un nome (es. "Sito Danilo")
+4. Copia il "Token segreto interno" (inizia con secret_...)
+5. Torna al database Notion → clicca "..." in alto a destra
+   → "Aggiungi connessioni" → seleziona la tua integrazione
+
+
+PASSO 3 — Crea account Netlify
+--------------------------------
+1. Vai su https://netlify.com e crea un account gratuito
+2. Clicca "Add new site" → "Deploy manually"
+3. Trascina la cartella "danilo-site" nella finestra
+4. Il sito viene pubblicato con un indirizzo tipo:
+   https://qualcosa-random.netlify.app
+
+
+PASSO 4 — Aggiungi le chiavi segrete su Netlify
+-------------------------------------------------
+1. Nel pannello Netlify vai su:
+   Site settings → Environment variables
+2. Aggiungi queste due variabili:
+
+   Nome: NOTION_TOKEN
+   Valore: [il token che hai copiato al passo 2]
+
+   Nome: NOTION_DATABASE_ID
+   Valore: [l'ID del database del passo 1]
+
+3. Clicca "Save" e poi rideploya il sito:
+   Deploys → Trigger deploy → Deploy site
+
+
+PASSO 5 — Collega il dominio (opzionale)
+------------------------------------------
+Se hai già un dominio su Aruba o altro hosting:
+1. Su Netlify: Domain settings → Add custom domain
+2. Segui le istruzioni per modificare i DNS su Aruba
+   (di solito basta aggiungere un record CNAME)
+
+
+----------------------------------------------------
+PARTE 2 — COME AGGIORNA DANILO LE OPERE
+----------------------------------------------------
+(Da fare ogni volta che vuole aggiungere un'opera)
+
+1. Apre Notion sul telefono o computer
+2. Va al database delle opere
+3. Clicca "+ Nuova riga"
+4. Compila:
+   - Titolo → nome dell'opera
+   - Immagine → carica la foto direttamente
+   - Tecnica → es. "Acrilico su tela, materiali misti"
+   - Anno → es. 2024
+   - Ordine → numero per decidere la posizione in galleria
+   - Pubblicato → spunta la casella ✓
+
+5. Il sito si aggiorna automaticamente!
+
+Per NASCONDERE un'opera: togli la spunta da "Pubblicato"
+Per RIORDINARE: cambia il numero in "Ordine"
+
+
+----------------------------------------------------
+PARTE 3 — COME MODIFICARE I TESTI DEL SITO
+----------------------------------------------------
+I testi (bio, hero, contatti) sono nel file index.html.
+Per modificarli:
+
+1. Apri index.html con un editor di testo
+   (VS Code gratuito: https://code.visualstudio.com)
+2. Usa Ctrl+F per cercare il testo da cambiare
+3. Modifica, salva
+4. Trascina di nuovo la cartella su Netlify per aggiornare
+
+In alternativa: dimmi qui su Claude cosa cambiare
+e lo faccio io in 30 secondi.
+
+
+----------------------------------------------------
+STRUTTURA DEI FILE
+----------------------------------------------------
+danilo-site/
+├── index.html                  ← il sito
+├── netlify.toml                ← configurazione Netlify
+├── netlify/
+│   └── functions/
+│       └── notion.js           ← collegamento con Notion
+└── COME-AGGIORNARE.txt         ← questo file
+
+
+----------------------------------------------------
+PROBLEMI COMUNI
+----------------------------------------------------
+"Le opere non si caricano"
+→ Controlla che le variabili d'ambiente siano salvate
+→ Controlla che l'integrazione sia connessa al database
+→ Controlla che almeno un'opera abbia "Pubblicato" ✓
+
+"La foto non si vede"
+→ Le foto caricate su Notion hanno un link temporaneo
+→ Soluzione: usa Cloudinary (gratuito) per caricare
+  le foto e incolla il link nel campo Immagine di Notion
+
+====================================================
+Per assistenza: torna su Claude con domande specifiche
+====================================================
