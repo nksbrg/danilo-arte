@@ -40,6 +40,11 @@
   .hero-bg-shape { position:absolute; border-radius:50%; z-index:0; }
   .hero-bg-shape.s1 { width:400px; height:400px; background:var(--yellow); top:-100px; right:-100px; opacity:0.5; }
   .hero-bg-shape.s2 { width:200px; height:200px; background:var(--blue); bottom:80px; left:60px; opacity:0.15; }
+  .hero-bg-shape.s3 { width:260px; height:260px; background:var(--red); top:52%; right:-80px; opacity:0.14; }
+  .hero-bg-shape.s4 { width:100px; height:100px; background:var(--orange); top:18%; left:18%; opacity:0.4; }
+  .hero-bg-splat { position:absolute; z-index:0; width:150px; height:150px; background:var(--green); opacity:0.2; clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%); top:6%; left:8%; transform:rotate(14deg); }
+  .hero-bg-ring { position:absolute; z-index:0; width:130px; height:130px; border:12px solid var(--yellow); border-radius:50%; bottom:10%; right:26%; opacity:0.4; transform:rotate(-10deg); }
+  .hero-bg-square { position:absolute; z-index:0; width:70px; height:70px; background:var(--blue); opacity:0.35; transform:rotate(25deg); top:42%; left:8%; border:3px solid var(--black); }
   .hero-content { position:relative; z-index:1; }
   .hero-tag { display:inline-block; background:var(--yellow); color:var(--black); font-weight:900; font-size:0.85rem; text-transform:uppercase; letter-spacing:2px; padding:6px 14px; border:2px solid var(--black); margin-bottom:24px; }
   .hero-title { font-family:'Boogaloo',cursive; font-size:clamp(3.5rem,8vw,7rem); line-height:0.95; color:var(--black); margin-bottom:28px; }
@@ -96,6 +101,8 @@
   .gallery-item:hover .gallery-overlay { opacity:1; }
   .gallery-overlay-text { color:var(--cream); font-family:'Boogaloo',cursive; font-size:1.2rem; }
   .gallery-overlay-meta { color:#ccc; font-size:0.85rem; margin-top:4px; }
+  .gallery-overlay-dim { color:var(--yellow); font-size:0.78rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; margin-top:6px; }
+  .gallery-overlay-snippet { color:#bdbdbd; font-size:0.78rem; margin-top:8px; line-height:1.4; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 
   /* Loading state */
   .gallery-loading { text-align:center; padding:60px 20px; font-family:'Boogaloo',cursive; font-size:1.5rem; color:#999; grid-column:1/-1; }
@@ -103,7 +110,12 @@
 
   /* CONTATTI */
   .contatti { padding:100px 40px; background:var(--yellow); border-top:4px solid var(--black); border-bottom:4px solid var(--black); }
-  .contatti-inner { max-width:600px; margin:0 auto; text-align:center; }
+  .contatti-inner { max-width:720px; margin:0 auto; text-align:center; }
+  .atelier-invite { font-family:'Boogaloo',cursive; font-size:1.35rem; color:var(--black); margin-bottom:12px; line-height:1.3; }
+  .atelier-address { font-weight:800; font-size:0.95rem; margin-bottom:16px; color:#222; }
+  .atelier-map-wrap { margin:0 auto 20px; max-width:640px; border:3px solid var(--black); overflow:hidden; box-shadow:6px 6px 0 var(--black); background:var(--cream); }
+  .atelier-map-wrap iframe { display:block; width:100%; height:280px; border:0; }
+  .atelier-actions { display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-bottom:36px; }
   .contatti .section-title { color:var(--black); margin-bottom:16px; }
   .contatti-desc { font-size:1.1rem; line-height:1.7; margin-bottom:40px; color:#333; }
   .contact-form { display:flex; flex-direction:column; gap:16px; text-align:left; }
@@ -127,11 +139,12 @@
   /* LIGHTBOX */
   .lightbox { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:200; align-items:center; justify-content:center; flex-direction:column; gap:16px; }
   .lightbox.open { display:flex; }
-  .lightbox-close { position:absolute; top:20px; right:28px; font-size:2.5rem; color:var(--cream); cursor:pointer; font-family:'Boogaloo',cursive; line-height:1; }
+  .lightbox-close { position:absolute; top:20px; right:28px; font-size:2.5rem; color:var(--cream); cursor:pointer; font-family:'Boogaloo',cursive; line-height:1; z-index:210; }
   .lightbox-close:hover { color:var(--yellow); }
   .lightbox-img { max-width:85vw; max-height:80vh; border:4px solid var(--cream); object-fit:contain; }
   .lightbox-caption { color:var(--cream); font-family:'Boogaloo',cursive; font-size:1.4rem; text-align:center; }
   .lightbox-meta { color:#aaa; font-size:0.9rem; }
+  .lightbox-desc { color:#c8c8c8; font-size:0.92rem; line-height:1.55; max-width:560px; text-align:left; white-space:pre-wrap; max-height:28vh; overflow-y:auto; padding:12px 16px; border:2px solid #444; margin:0 16px; border-radius:4px; }
 
   /* REVEAL */
   .reveal { opacity:0; transform:translateY(30px); transition:opacity 0.6s ease, transform 0.6s ease; }
@@ -158,7 +171,7 @@
   @media (max-width:540px) {
     .gallery { columns:1; }
     .hero-title { font-size:3rem; }
-    .mosaic-grid { display:none; }
+    .mosaic-grid { grid-template-rows:repeat(3,100px); gap:6px; }
   }
 </style>
 </head>
@@ -168,6 +181,7 @@
   <a href="#" class="nav-logo">dan<span>.</span>ilo<span>.</span>arte</a>
   <ul class="nav-links">
     <li><a href="#opere">Opere</a></li>
+    <li><a href="#atelier">Atelier</a></li>
     <li><a href="#about">Chi è</a></li>
     <li><a href="#contatti">Contatti</a></li>
   </ul>
@@ -179,6 +193,7 @@
 <div class="mobile-menu" id="mobileMenu">
   <span class="mobile-menu-close" id="menuClose">✕</span>
   <a href="#opere" onclick="closeMobileMenu()">Opere</a>
+  <a href="#atelier" onclick="closeMobileMenu()">Atelier</a>
   <a href="#about" onclick="closeMobileMenu()">Chi è</a>
   <a href="#contatti" onclick="closeMobileMenu()">Contatti</a>
 </div>
@@ -186,8 +201,13 @@
 <section class="hero" id="home">
   <div class="hero-bg-shape s1"></div>
   <div class="hero-bg-shape s2"></div>
+  <div class="hero-bg-shape s3"></div>
+  <div class="hero-bg-shape s4"></div>
+  <div class="hero-bg-splat" aria-hidden="true"></div>
+  <div class="hero-bg-ring" aria-hidden="true"></div>
+  <div class="hero-bg-square" aria-hidden="true"></div>
   <div class="hero-content">
-    <span class="hero-tag">🎨 Arona · Fuori di Tela · ILO</span>
+    <span class="hero-tag">Dove colori, fili e ironia si danno appuntamento</span>
     <h1 class="hero-title">
       Colori,
       <span class="accent">ironia</span>
@@ -204,13 +224,13 @@
     </div>
   </div>
   <div class="hero-visual">
-    <div class="mosaic-grid">
-      <div class="mosaic-cell span2 ph-yellow"><div class="ph-label">🐋</div></div>
-      <div class="mosaic-cell ph-red tall"><div class="ph-label">❤️</div></div>
-      <div class="mosaic-cell ph-blue"><div class="ph-label">☮️</div></div>
-      <div class="mosaic-cell ph-green"><div class="ph-label">🦎</div></div>
-      <div class="mosaic-cell span2 ph-orange"><div class="ph-label">🎨</div></div>
-      <div class="mosaic-cell ph-yellow"><div class="ph-label">⭐</div></div>
+    <div class="mosaic-grid" id="heroMosaic">
+      <div class="mosaic-cell span2 ph-yellow" data-hero-slot><div class="ph-label">🐋</div></div>
+      <div class="mosaic-cell ph-red tall" data-hero-slot><div class="ph-label">❤️</div></div>
+      <div class="mosaic-cell ph-blue" data-hero-slot><div class="ph-label">☮️</div></div>
+      <div class="mosaic-cell ph-green" data-hero-slot><div class="ph-label">🦎</div></div>
+      <div class="mosaic-cell span2 ph-orange" data-hero-slot><div class="ph-label">🎨</div></div>
+      <div class="mosaic-cell ph-yellow" data-hero-slot><div class="ph-label">⭐</div></div>
     </div>
   </div>
 </section>
@@ -267,6 +287,17 @@
       Vuoi un'opera su commissione? Invitarmi a una mostra?
       O semplicemente dirmi che ti è piaciuta la balena? Scrivimi.
     </p>
+    <div class="atelier-block reveal reveal-delay-1" id="atelier">
+      <p class="section-label" style="color:#555;">Atelier</p>
+      <p class="atelier-invite">Se passi da Arona, passa anche da me: l'atelier è in Via Bottelli, il caffè lo offro io (quando c'è). Vieni a trovare Danilo — anche solo per curiosare i colori.</p>
+      <p class="atelier-address">📍 Via Bottelli 42 · 28041 Arona (NO)</p>
+      <div class="atelier-map-wrap">
+        <iframe title="Mappa — Atelier Via Bottelli 42, Arona" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.openstreetmap.org/export/embed.html?bbox=8.5490%2C45.7525%2C8.5655%2C45.7595&amp;layer=mapnik&amp;marker=45.7560%2C8.5572"></iframe>
+      </div>
+      <div class="atelier-actions">
+        <a href="https://www.google.com/maps/search/?api=1&amp;query=Via+Bottelli+42,+28041+Arona+NO+Italia" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">Apri in Google Maps</a>
+      </div>
+    </div>
     <div class="contact-form reveal">
       <div class="form-row">
         <div class="form-field">
@@ -295,11 +326,12 @@
   </div>
 </footer>
 
-<div class="lightbox" id="lightbox" onclick="closeLightbox()">
-  <span class="lightbox-close">✕</span>
+<div class="lightbox" id="lightbox">
+  <span class="lightbox-close" onclick="closeLightbox()">✕</span>
   <img class="lightbox-img" id="lightboxImg" src="" alt="">
   <div class="lightbox-caption" id="lightboxCaption"></div>
   <div class="lightbox-meta" id="lightboxMeta"></div>
+  <div class="lightbox-desc" id="lightboxDesc" hidden></div>
 </div>
 
 <script>
@@ -317,14 +349,43 @@
   document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 
   // Lightbox
-  function openLightbox(src, titolo, meta) {
-    document.getElementById('lightboxImg').src = src;
+  const lightboxEl = document.getElementById('lightbox');
+  function openLightbox(src, titolo, meta, descrizione) {
+    document.getElementById('lightboxImg').src = src || '';
     document.getElementById('lightboxCaption').textContent = titolo || '';
     document.getElementById('lightboxMeta').textContent = meta || '';
-    document.getElementById('lightbox').classList.add('open');
+    const desc = document.getElementById('lightboxDesc');
+    if (descrizione && String(descrizione).trim()) {
+      desc.hidden = false;
+      desc.textContent = descrizione;
+    } else {
+      desc.hidden = true;
+      desc.textContent = '';
+    }
+    lightboxEl.classList.add('open');
   }
-  function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+  function closeLightbox() {
+    lightboxEl.classList.remove('open');
+    document.getElementById('lightboxImg').src = '';
+  }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+  lightboxEl.addEventListener('click', e => { if (e.target === lightboxEl) closeLightbox(); });
+
+  function popolaHeroMosaic(opere) {
+    const slots = document.querySelectorAll('#heroMosaic [data-hero-slot]');
+    if (!slots.length) return;
+    const withImg = opere.filter(o => o.immagine);
+    slots.forEach((cell, i) => {
+      const op = withImg[i];
+      if (!op) return;
+      cell.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = op.immagine;
+      img.alt = op.titolo || '';
+      img.loading = 'lazy';
+      cell.appendChild(img);
+    });
+  }
 
   // Carica opere da Notion via Netlify Function
   async function caricaOpere() {
@@ -334,25 +395,65 @@
       if (!res.ok) throw new Error('Errore dal server');
       const opere = await res.json();
 
+      if (!Array.isArray(opere)) {
+        const msg = (opere && opere.error) ? opere.error : 'Risposta non valida';
+        throw new Error(msg);
+      }
+
       if (!opere.length) {
         gallery.innerHTML = '<p class="gallery-loading">Nessuna opera pubblicata ancora.</p>';
         return;
       }
 
-      gallery.innerHTML = opere.map(op => {
-        const meta = [op.anno, op.tecnica].filter(Boolean).join(' · ');
-        const metaHtml = meta ? '<div class="gallery-overlay-meta">' + meta + '</div>' : '';
-        return '<div class="gallery-item reveal" onclick="openLightbox(\'' + op.immagine + '\', \'' + op.titolo + '\', \'' + meta + '\')">'
-          + '<img src="' + op.immagine + '" alt="' + op.titolo + '" loading="lazy">'
-          + '<div class="gallery-overlay"><div>'
-          + '<div class="gallery-overlay-text">' + op.titolo + '</div>'
-          + metaHtml
-          + '</div></div></div>';
-      }).join('');
-      
-      // Ri-osserva gli elementi appena creati
-      gallery.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+      popolaHeroMosaic(opere);
 
+      gallery.innerHTML = '';
+      opere.forEach(op => {
+        if (!op.immagine) return;
+        const item = document.createElement('div');
+        item.className = 'gallery-item reveal';
+        const img = document.createElement('img');
+        img.src = op.immagine;
+        img.alt = op.titolo || '';
+        img.loading = 'lazy';
+        const overlayMeta = [op.anno, op.tecnica].filter(Boolean).join(' · ');
+        const lightboxMeta = [op.anno, op.tecnica, op.dimensioni].filter(Boolean).join(' · ');
+        let snippet = (op.descrizione || '').trim().replace(/\s+/g, ' ');
+        if (snippet.length > 140) snippet = snippet.slice(0, 137) + '…';
+        item.appendChild(img);
+        const overlay = document.createElement('div');
+        overlay.className = 'gallery-overlay';
+        const inner = document.createElement('div');
+        const tit = document.createElement('div');
+        tit.className = 'gallery-overlay-text';
+        tit.textContent = op.titolo || '';
+        inner.appendChild(tit);
+        if (overlayMeta) {
+          const m = document.createElement('div');
+          m.className = 'gallery-overlay-meta';
+          m.textContent = overlayMeta;
+          inner.appendChild(m);
+        }
+        if (op.dimensioni) {
+          const d = document.createElement('div');
+          d.className = 'gallery-overlay-dim';
+          d.textContent = op.dimensioni;
+          inner.appendChild(d);
+        }
+        if (snippet) {
+          const s = document.createElement('div');
+          s.className = 'gallery-overlay-snippet';
+          s.textContent = snippet;
+          inner.appendChild(s);
+        }
+        overlay.appendChild(inner);
+        item.appendChild(overlay);
+        item.addEventListener('click', () => {
+          openLightbox(op.immagine, op.titolo || '', lightboxMeta, op.descrizione || '');
+        });
+        gallery.appendChild(item);
+        observer.observe(item);
+      });
     } catch (err) {
       gallery.innerHTML = `<div class="gallery-error">Impossibile caricare le opere al momento.<br><small>${err.message}</small></div>`;
     }

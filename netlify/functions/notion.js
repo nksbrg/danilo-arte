@@ -50,6 +50,11 @@ exports.handler = async function (event) {
       };
     }
 
+    function notionRichText(prop) {
+      if (!prop?.rich_text?.length) return "";
+      return prop.rich_text.map((b) => b.plain_text).join("");
+    }
+
     const opere = data.results.map((page) => {
       const props = page.properties;
       const immagine = props.Immagine?.url ||
@@ -63,7 +68,9 @@ exports.handler = async function (event) {
         id: page.id,
         titolo: props.Titolo?.title?.[0]?.plain_text || "Senza titolo",
         anno:   props.Anno?.number || null,
-        tecnica: props.Tecnica?.rich_text?.[0]?.plain_text || "",
+        tecnica: notionRichText(props.Tecnica),
+        dimensioni: notionRichText(props.Dimensioni),
+        descrizione: notionRichText(props.Descrizione),
         immagine: immagineValidata,
       };
     });

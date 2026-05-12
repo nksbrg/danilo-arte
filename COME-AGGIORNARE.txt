@@ -14,10 +14,12 @@ PASSO 1 — Crea il database Notion
 1. Apri Notion (notion.so) e crea una nuova pagina
 2. Aggiungi un database a tabella con queste colonne:
    - "Titolo"      → tipo: Titolo (già presente)
-   - "Immagine"    → tipo: File e media
+   - "Immagine"    → tipo: File e media (meglio link HTTPS / Cloudinary — vedi "Problemi comuni")
    - "Tecnica"     → tipo: Testo
    - "Anno"        → tipo: Numero
-   - "Ordine"      → tipo: Numero (per ordinare le opere)
+   - "Dimensioni"  → tipo: Testo (es. "80 × 60 cm" o "cm 40×40") — compare in galleria e lightbox
+   - "Descrizione" → tipo: Testo (testo lungo sull'opera) — anteprima in hover, testo completo nel lightbox
+   - "Ordine"      → tipo: Numero (per ordinare le opere; le prime 6 con immagine riempiono anche la mosaic della hero)
    - "Pubblicato"  → tipo: Casella di spunta ✓
 
 3. Copia l'ID del database dall'URL:
@@ -78,10 +80,12 @@ PARTE 2 — COME AGGIORNA DANILO LE OPERE
 3. Clicca "+ Nuova riga"
 4. Compila:
    - Titolo → nome dell'opera
-   - Immagine → carica la foto direttamente
+   - Immagine → foto (HTTPS / Cloudinary consigliato)
    - Tecnica → es. "Acrilico su tela, materiali misti"
+   - Dimensioni → es. "100 × 80 cm"
+   - Descrizione → racconto dell'opera (opzionale ma consigliato)
    - Anno → es. 2024
-   - Ordine → numero per decidere la posizione in galleria
+   - Ordine → numero per decidere la posizione in galleria (e in hero: prime 6 con immagine)
    - Pubblicato → spunta la casella ✓
 
 5. Il sito si aggiorna automaticamente!
