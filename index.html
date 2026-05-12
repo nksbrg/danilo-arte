@@ -339,8 +339,7 @@
         return;
       }
 
-      gallery.innerHTML = opere.map(op => `
-        gallery.innerHTML = opere.map(op => {
+      gallery.innerHTML = opere.map(op => {
         const meta = [op.anno, op.tecnica].filter(Boolean).join(' · ');
         const metaHtml = meta ? '<div class="gallery-overlay-meta">' + meta + '</div>' : '';
         return '<div class="gallery-item reveal" onclick="openLightbox(\'' + op.immagine + '\', \'' + op.titolo + '\', \'' + meta + '\')">'
