@@ -31,7 +31,6 @@ exports.handler = async function (event) {
 
     const data = await response.json();
 
-    // Trasforma i risultati Notion in formato semplice per il sito
     const opere = data.results.map((page) => {
       const props = page.properties;
       return {
@@ -39,7 +38,8 @@ exports.handler = async function (event) {
         titolo: props.Titolo?.title?.[0]?.plain_text || "Senza titolo",
         anno:   props.Anno?.number || null,
         tecnica: props.Tecnica?.rich_text?.[0]?.plain_text || "",
-        immagine: props.Immagine?.files?.[0]?.file?.url ||
+        immagine: props.Immagine?.url ||
+                  props.Immagine?.files?.[0]?.file?.url ||
                   props.Immagine?.files?.[0]?.external?.url || null,
       };
     });
@@ -59,4 +59,3 @@ exports.handler = async function (event) {
     };
   }
 };
-
