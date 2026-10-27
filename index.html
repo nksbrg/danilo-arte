@@ -434,18 +434,17 @@
     });
   }
 
-  // Carica opere da Notion via Netlify Function
+  // Carica il catalogo opere generato a build time dal CMS
+  // (content/opere/*.json → scripts/build.js → data/opere.json).
+  // Nessuna chiamata a servizi esterni: se il catalogo manca o è vuoto,
+  // la galleria mostra semplicemente un messaggio.
   async function caricaOpere() {
     const gallery = document.getElementById('gallery');
     try {
-      const res = await fetch('/.netlify/functions/notion');
-      if (!res.ok) throw new Error('Errore dal server');
+      const res = await fetch('/data/opere.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error('Catalogo non disponibile');
       const opere = await res.json();
-
-      if (!Array.isArray(opere)) {
-        const msg = (opere && opere.error) ? opere.error : 'Risposta non valida';
-        throw new Error(msg);
-      }
+      if (!Array.isArray(opere)) throw new Error('Formato del catalogo non valido');
 
       if (!opere.length) {
         gallery.innerHTML = '<p class="gallery-loading">Nessuna opera pubblicata ancora.</p>';

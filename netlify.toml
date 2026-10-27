@@ -1,5 +1,11 @@
 [build]
-  functions = "netlify/functions"
+  publish = "dist"
+  # Legge content/opere/*.json, genera il catalogo pubblico filtrato per
+  # stato e assembla dist/ con solo i file destinati al dominio pubblico
+  # (vedi scripts/build.js per l'elenco esatto). Se lo script fallisce
+  # (JSON non valido, campo obbligatorio mancante), il build si ferma e il
+  # deploy precedente resta online.
+  command = "node scripts/build.js"
 
 [[headers]]
   for = "/*"
@@ -9,10 +15,18 @@
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src https://fonts.gstatic.com; img-src * data: blob:; connect-src 'self' https://api.notion.com; frame-src 'self' https://www.openstreetmap.org;"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src https://fonts.gstatic.com; img-src * data: blob:; connect-src 'self'; frame-src 'self' https://www.openstreetmap.org;"
 
+# CSP dedicata al pannello /admin (Decap CMS). Non modifica la policy del
+# sito pubblico sopra, che resta invariata.
+# NON VERIFICATA dal vivo in questo ambiente (nessun accesso a Internet nel
+# sandbox di sviluppo): gli host di Decap Turbo e Cloudinary elencati sono
+# dedotti dalla documentazione ufficiale, non osservati da un browser reale.
+# Primo collaudo reale: aprire /admin, controllare la console del browser
+# per errori "Content Security Policy" e aggiungere qui gli host mancanti.
 [[headers]]
-  for = "/.netlify/functions/*"
+  for = "/admin/*"
   [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src 'self' https://fonts.gstatic.com data:; img-src * data: blob:; connect-src 'self' https://unpkg.com https://api.github.com https://api.cloudinary.com https://*.cloudinary.com https://*.decapcms.org https://*.supabase.co; frame-src 'self' https://*.cloudinary.com; worker-src 'self' blob:;"

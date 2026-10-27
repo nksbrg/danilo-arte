@@ -1,0 +1,10 @@
+{
+  "titolo": "Opera di prova — nascosta",
+  "immagine": "/assets/test-opere/opera-prova-3.jpg",
+  "tecnica": "Dato fittizio: tecnica mista (test)",
+  "dimensioni": "100 × 70 cm (dato fittizio)",
+  "anno": 2025,
+  "descrizione": "Opera di TEST precedentemente pubblicata e poi nascosta. Dati interamente fittizi. Stato: nascosta, quindi NON deve comparire nel catalogo generato né nella galleria, ma il file e i suoi dati restano conservati nel repository (nessuna cancellazione).",
+  "ordine": 3,
+  "stato": "nascosta"
+}

@@ -1,0 +1,5 @@
+# Cartella pubblicata, generata da scripts/build.js a partire da index.html,
+# thanks.html, assets/, admin/ e content/opere/*.json. Non va versionata: la
+# ricrea ogni build di Netlify (e si rigenera in locale con:
+# node scripts/build.js).
+/dist/
