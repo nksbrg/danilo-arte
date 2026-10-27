@@ -59,6 +59,9 @@ run_sql "${REPO_ROOT}/supabase/tests/rls.sql"
 echo "[run-rls-tests] Eseguo le asserzioni di hardening (search_path, rls_auto_enable)..."
 run_sql "${REPO_ROOT}/supabase/tests/hardening.sql"
 
+echo "[run-rls-tests] Eseguo le asserzioni sul vincolo categoria..."
+run_sql "${REPO_ROOT}/supabase/tests/categorie_opere.sql"
+
 echo "[run-rls-tests] Pulizia..."
 psql_super -c "drop database if exists ${DB_NAME}" >/dev/null
 
