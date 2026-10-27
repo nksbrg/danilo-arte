@@ -119,7 +119,19 @@
      della colonna e non cambia nulla: comportamento identico a prima. */
   .gallery { column-count:min(3, var(--n-opere, 3)); column-gap:12px; --tile-ideale:calc((100vw - 104px) / 3); }
   .gallery-item { break-inside:avoid; max-width:var(--tile-ideale, none); margin:0 auto 12px; border:3px solid var(--black); overflow:hidden; position:relative; cursor:pointer; display:block; }
-  .gallery-item img { width:100%; display:block; transition:transform 0.4s; min-height:200px; object-fit:cover; }
+  /* height:auto è obbligatorio: gli attributi HTML width/height (sotto, da
+     larghezza_px/altezza_px) mappano di default a un'altezza CSS in pixel
+     LETTERALI (es. 1600px), non a un rapporto d'aspetto — e quella regola
+     da sola sopravvive qui perché solo "width" viene sovrascritta sopra.
+     Senza height:auto il tassello resta alto quanto l'opera originale
+     (migliaia di px) pur essendo stretto quanto la colonna del mosaico
+     (poche centinaia di px): object-fit doveva poi ritagliare brutalmente
+     l'opera per riempire quel riquadro sproporzionato ("strisce verticali
+     ritagliate"). Con height:auto l'altezza torna proporzionale alla
+     larghezza reale del tassello, secondo il rapporto width/height
+     dichiarato; object-fit:contain resta come rete di sicurezza se quel
+     rapporto dichiarato non corrisponde esattamente al file reale. */
+  .gallery-item img { width:100%; height:auto; display:block; transition:transform 0.4s; object-fit:contain; }
   .gallery-item:hover img { transform:scale(1.04); }
   .gallery-overlay { position:absolute; inset:0; background:rgba(26,26,26,0.75); display:flex; align-items:flex-end; padding:20px; opacity:0; transition:opacity 0.3s; }
   .gallery-item:hover .gallery-overlay { opacity:1; }
