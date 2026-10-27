@@ -45,7 +45,7 @@ const STATI_VALIDI = new Set(["bozza", "pubblicata", "nascosta", "archiviata"]);
 // File e cartelle pubblicati così come sono, copiati dentro dist/ con lo
 // stesso percorso relativo. Qualunque cosa non elencata qui resta fuori da
 // dist/ e quindi fuori dal dominio pubblico.
-const FILE_PUBBLICI = ["index.html", "thanks.html", "assets", "admin", "pannello"];
+const FILE_PUBBLICI = ["index.html", "thanks.html", "assets", "admin"];
 
 /**
  * Legge e valida content/opere/*.json. Lancia un errore (non termina il
@@ -190,7 +190,7 @@ function main() {
     perStato[o.stato] = (perStato[o.stato] || 0) + 1;
   });
 
-  const catalogo = costruisciCatalogoPubblico(tutteLeOpere);
+  const catalogo = []; // Catalogo legacy disattivato: Supabase è la sola fonte dati.
 
   copiaFilePubblici(ROOT, DIST_DIR);
 
