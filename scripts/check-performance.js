@@ -63,12 +63,20 @@ function opereFinte(conDimensioni) {
     { titolo: "Opera Cinque", tecnica: "Collage", dimensioni: "40x40cm", anno: 2018, descrizione: "Altra descrizione di prova.", image_path: "opera-prova-2.jpg" },
     { titolo: "Opera Sei", tecnica: "Inchiostro", dimensioni: "30x30cm", anno: 2023, descrizione: "", image_path: "opera-prova-3.jpg" },
   ];
+  // Tutte nella categoria "ricami" (vedi supabase/migrations/0008_categorie_opere.sql,
+  // CATEGORIE-OPERE.md): la homepage distribuisce le opere in tre sezioni per
+  // categoria, quindi senza questo campo finirebbero tutte nella sezione
+  // provvisoria "da classificare" (inizialmente nascosta) invece che nella
+  // galleria #gallery-ricami usata dalle misure sotto. Irrilevante per
+  // quello che questo script misura (il beneficio di larghezza_px/altezza_px),
+  // che è indipendente dalla categoria.
+  const conCategoria = base.map((o) => ({ ...o, categoria: "ricami" }));
   // Le fotografie di prova (assets/test-opere/) sono reali JPEG 1200x900px,
   // le stesse dimensioni dichiarate qui: così il confronto con/senza
   // larghezza_px/altezza_px misura solo l'effetto di SAPERE in anticipo le
   // dimensioni (spazio riservato), non un eventuale scarto fittizio fra
   // dimensione dichiarata e reale.
-  return base.map((o) => (conDimensioni ? { ...o, larghezza_px: 1200, altezza_px: 900 } : o));
+  return conCategoria.map((o) => (conDimensioni ? { ...o, larghezza_px: 1200, altezza_px: 900 } : o));
 }
 
 // Serve dist/ così com'è, più un'intercettazione dell'endpoint REST (per
@@ -128,11 +136,11 @@ async function misuraSpostamentoReale(browser, catalogoFinto) {
     // scroll "instant": html ha scroll-behavior:smooth, che renderebbe la
     // misura dipendente dalla durata dell'animazione di scroll invece che
     // dal solo caricamento della fotografia.
-    await page.evaluate(() => document.getElementById("gallery").scrollIntoView({ behavior: "instant", block: "start" }));
-    const altezzaPrima = await page.evaluate(() => document.querySelector(".gallery-item")?.getBoundingClientRect().height ?? null);
+    await page.evaluate(() => document.getElementById("gallery-ricami").scrollIntoView({ behavior: "instant", block: "start" }));
+    const altezzaPrima = await page.evaluate(() => document.querySelector("#gallery-ricami .gallery-item")?.getBoundingClientRect().height ?? null);
     await page.waitForTimeout(RITARDO_IMMAGINE_MS + 400);
-    const altezzaDopo = await page.evaluate(() => document.querySelector(".gallery-item")?.getBoundingClientRect().height ?? null);
-    const naturalDopo = await page.evaluate(() => { const img = document.querySelector(".gallery-item img"); return img ? [img.naturalWidth, img.naturalHeight] : null; });
+    const altezzaDopo = await page.evaluate(() => document.querySelector("#gallery-ricami .gallery-item")?.getBoundingClientRect().height ?? null);
+    const naturalDopo = await page.evaluate(() => { const img = document.querySelector("#gallery-ricami .gallery-item img"); return img ? [img.naturalWidth, img.naturalHeight] : null; });
     await page.close();
     return { altezzaPrima, altezzaDopo, naturalDopo };
   } finally {
@@ -153,7 +161,7 @@ async function misuraCLSControllo(browser, catalogoFinto) {
       new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
           if (entry.hadRecentInput) continue;
-          const dentroGalleria = (entry.sources || []).some((s) => s.node && s.node.closest && s.node.closest("#gallery"));
+          const dentroGalleria = (entry.sources || []).some((s) => s.node && s.node.closest && s.node.closest("#gallery-ricami"));
           if (dentroGalleria) window.__shiftsGalleria += entry.value;
         }
       }).observe({ type: "layout-shift", buffered: true });
@@ -165,8 +173,8 @@ async function misuraCLSControllo(browser, catalogoFinto) {
       // controllo (non è una modifica permanente al sito: avviene
       // nel DOM di una pagina di test, in memoria, e serve solo ad
       // aggirare il limite di Chromium descritto sopra).
-      document.getElementById("gallery").style.columns = "initial";
-      document.getElementById("gallery").scrollIntoView({ behavior: "instant", block: "start" });
+      document.getElementById("gallery-ricami").style.columns = "initial";
+      document.getElementById("gallery-ricami").scrollIntoView({ behavior: "instant", block: "start" });
     });
     await page.waitForTimeout(RITARDO_IMMAGINE_MS + 400);
     const cls = await page.evaluate(() => window.__shiftsGalleria);

@@ -27,6 +27,18 @@ const BUCKET = "opere";
 const { escapeHtml, validaFile, estensioneDa } = window.Validazione;
 const { elaboraImmagine } = window.ElaborazioneImmagine;
 
+// Macro-categorie delle opere (vedi supabase/migrations/0008_categorie_opere.sql).
+// Valori tecnici stabili nel database, etichette leggibili solo qui.
+const CATEGORIE = [
+  { valore: "ricami", etichetta: "Ricami" },
+  { valore: "fuori_di_tela", etichetta: "Fuori di tela" },
+  { valore: "paciughi", etichetta: "Paciughi" },
+];
+const ETICHETTA_CATEGORIA = Object.fromEntries(CATEGORIE.map((c) => [c.valore, c.etichetta]));
+function etichettaCategoria(valore) {
+  return ETICHETTA_CATEGORIA[valore] || "Da classificare";
+}
+
 const app = document.getElementById("app");
 
 function mostraErroreConfigurazione() {
@@ -78,6 +90,13 @@ function renderMessaggio(tipo, testo) {
 
 function messaggioErroreSupabase(error) {
   if (!error) return "Errore sconosciuto.";
+  // Traduzione di un vincolo noto in un messaggio chiaro in italiano: la
+  // selezione nel modulo impedisce già di inviare un valore non valido (solo
+  // le 3 categorie ammesse sono selezionabili), ma il database resta
+  // l'ultima linea di difesa (es. in caso di manomissione del modulo).
+  if (error.code === "23514" && /categoria/.test(error.message || "")) {
+    return "Categoria non valida: scegli una delle categorie disponibili.";
+  }
   // Non esponiamo mai error.details/hint grezzi (potrebbero contenere
   // dettagli interni del database): solo il messaggio, già pensato da
   // Supabase per essere mostrato.
@@ -274,6 +293,47 @@ function urlPubblicoImmagine(imagePath) {
   return data.publicUrl;
 }
 
+function renderRigaOpera(o) {
+  const classeBadge = o.categoria ? "" : " non-classificata";
+  return `
+    <div class="opera-riga" data-id="${o.id}">
+      <img src="${escapeHtml(urlPubblicoImmagine(o.image_path))}" alt="">
+      <div class="info">
+        <strong>${escapeHtml(o.titolo)}</strong>
+        <span>${escapeHtml([o.anno, o.tecnica].filter(Boolean).join(" · "))}</span>
+        <span class="badge-categoria${classeBadge}">${escapeHtml(etichettaCategoria(o.categoria))}</span>
+      </div>
+      <div class="azioni">
+        <button type="button" class="secondario btn-modifica">Modifica</button>
+        <button type="button" class="pericolo btn-elimina">Elimina</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderRigheOpere(elencoEl, listaOpere, tutteLeOpere) {
+  if (!listaOpere.length) {
+    elencoEl.innerHTML = "<p>Nessuna opera in questa categoria.</p>";
+    return;
+  }
+  elencoEl.innerHTML = listaOpere.map(renderRigaOpera).join("");
+
+  elencoEl.querySelectorAll(".btn-modifica").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const id = e.target.closest(".opera-riga").dataset.id;
+      const opera = tutteLeOpere.find((o) => String(o.id) === id);
+      renderFormOpera(opera);
+    });
+  });
+  elencoEl.querySelectorAll(".btn-elimina").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const id = e.target.closest(".opera-riga").dataset.id;
+      const opera = tutteLeOpere.find((o) => String(o.id) === id);
+      renderConfermaEliminazione(opera);
+    });
+  });
+}
+
 async function renderDashboard(messaggio) {
   app.innerHTML = `
     <div class="topbar">
@@ -283,6 +343,14 @@ async function renderDashboard(messaggio) {
     ${messaggio ? renderMessaggio(messaggio.tipo, messaggio.testo) : ""}
     <div class="card">
       <button type="button" id="btn-aggiungi">+ Aggiungi opera</button>
+      <div class="filtro-riga">
+        <label for="filtro-categoria">Filtra per categoria</label>
+        <select id="filtro-categoria">
+          <option value="">Tutte</option>
+          ${CATEGORIE.map((c) => `<option value="${c.valore}">${escapeHtml(c.etichetta)}</option>`).join("")}
+          <option value="_nessuna">Da classificare</option>
+        </select>
+      </div>
     </div>
     <div id="elenco-opere" class="card">Caricamento delle opere…</div>
   `;
@@ -294,11 +362,12 @@ async function renderDashboard(messaggio) {
 
   const { data: opere, error } = await supabaseClient
     .from("opere")
-    .select("id, titolo, tecnica, dimensioni, anno, descrizione, ordine, image_path")
+    .select("id, titolo, tecnica, dimensioni, anno, descrizione, ordine, image_path, categoria")
     .order("ordine", { ascending: true })
     .order("titolo", { ascending: true });
 
   const elenco = document.getElementById("elenco-opere");
+  const filtro = document.getElementById("filtro-categoria");
 
   if (error) {
     elenco.innerHTML = renderMessaggio("errore", "Impossibile caricare le opere: " + messaggioErroreSupabase(error));
@@ -310,34 +379,18 @@ async function renderDashboard(messaggio) {
     return;
   }
 
-  elenco.innerHTML = opere.map((o) => `
-    <div class="opera-riga" data-id="${o.id}">
-      <img src="${escapeHtml(urlPubblicoImmagine(o.image_path))}" alt="">
-      <div class="info">
-        <strong>${escapeHtml(o.titolo)}</strong>
-        <span>${escapeHtml([o.anno, o.tecnica].filter(Boolean).join(" · "))}</span>
-      </div>
-      <div class="azioni">
-        <button type="button" class="secondario btn-modifica">Modifica</button>
-        <button type="button" class="pericolo btn-elimina">Elimina</button>
-      </div>
-    </div>
-  `).join("");
+  function applicaFiltro() {
+    const valore = filtro.value;
+    const filtrate = !valore
+      ? opere
+      : valore === "_nessuna"
+      ? opere.filter((o) => !o.categoria)
+      : opere.filter((o) => o.categoria === valore);
+    renderRigheOpere(elenco, filtrate, opere);
+  }
 
-  elenco.querySelectorAll(".btn-modifica").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const id = e.target.closest(".opera-riga").dataset.id;
-      const opera = opere.find((o) => String(o.id) === id);
-      renderFormOpera(opera);
-    });
-  });
-  elenco.querySelectorAll(".btn-elimina").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const id = e.target.closest(".opera-riga").dataset.id;
-      const opera = opere.find((o) => String(o.id) === id);
-      renderConfermaEliminazione(opera);
-    });
-  });
+  filtro.addEventListener("change", applicaFiltro);
+  applicaFiltro();
 }
 
 // ---------------------------------------------------------------------
@@ -397,6 +450,13 @@ function renderFormOpera(opera) {
 
         <label for="campo-titolo">Titolo</label>
         <input type="text" id="campo-titolo" required value="${escapeHtml(opera?.titolo || "")}">
+
+        <label for="campo-categoria">Categoria</label>
+        <select id="campo-categoria" required>
+          <option value="" ${!opera?.categoria ? "selected" : ""} disabled>Seleziona una categoria…</option>
+          ${CATEGORIE.map((c) => `<option value="${c.valore}" ${opera?.categoria === c.valore ? "selected" : ""}>${escapeHtml(c.etichetta)}</option>`).join("")}
+        </select>
+        ${inModifica && !opera?.categoria ? '<p class="hint">Questa opera non ha ancora una categoria: scegline una per completarne la classificazione.</p>' : ""}
 
         <label for="campo-tecnica">Tecnica <span class="facoltativo">(facoltativa)</span></label>
         <input type="text" id="campo-tecnica" value="${escapeHtml(opera?.tecnica || "")}">
@@ -503,6 +563,18 @@ function renderFormOpera(opera) {
     e.preventDefault();
     const btnSalva = document.getElementById("btn-salva");
     const esitoForm = document.getElementById("esito-form");
+
+    // Validazione lato interfaccia, in aggiunta (non in sostituzione) al
+    // vincolo CHECK nel database (opere_categoria_valida): il menu a tendina
+    // offre solo le categorie ammesse più un'opzione vuota disabilitata, ma
+    // un controllo esplicito qui protegge anche da un modulo manomesso
+    // (es. un valore aggiunto via devtools) prima di arrivare alla rete.
+    const categoriaScelta = document.getElementById("campo-categoria").value;
+    if (!CATEGORIE.some((c) => c.valore === categoriaScelta)) {
+      esitoForm.innerHTML = renderMessaggio("errore", "Seleziona una categoria valida prima di salvare.");
+      return;
+    }
+
     btnSalva.disabled = true;
     esitoForm.innerHTML = "Salvataggio in corso…";
 
@@ -510,6 +582,7 @@ function renderFormOpera(opera) {
 
     const valori = {
       titolo: document.getElementById("campo-titolo").value.trim(),
+      categoria: categoriaScelta,
       tecnica: document.getElementById("campo-tecnica").value.trim() || null,
       dimensioni: document.getElementById("campo-dimensioni").value.trim() || null,
       anno: document.getElementById("campo-anno").value ? Number(document.getElementById("campo-anno").value) : null,

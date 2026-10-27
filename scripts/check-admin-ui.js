@@ -48,7 +48,13 @@ const modalitaAdmin = parametri.get("admin") !== "no";
 let listenerAuth = null;
 let chiamate = 0;
 function client() {
-  const opere = [{ id: "11111111-1111-1111-1111-111111111111", titolo: "Opera A", tecnica: "Olio", dimensioni: "10x10", anno: 2020, descrizione: "desc", ordine: 1, image_path: "a.jpg" }];
+  // Opera A: già classificata (ricami). Opera B: senza categoria (NULL),
+  // come un'opera esistente prima dell'introduzione del campo — serve a
+  // verificare precompilazione vuota, badge "Da classificare" e filtro.
+  const opere = [
+    { id: "11111111-1111-1111-1111-111111111111", titolo: "Opera A", tecnica: "Olio", dimensioni: "10x10", anno: 2020, descrizione: "desc", ordine: 1, image_path: "a.jpg", categoria: "ricami" },
+    { id: "22222222-2222-2222-2222-222222222222", titolo: "Opera B", tecnica: "Acrilico", dimensioni: "20x20", anno: 2021, descrizione: "desc b", ordine: 2, image_path: "b.jpg", categoria: null },
+  ];
   return {
     auth: {
       getSession: async () => {
@@ -181,14 +187,128 @@ async function main() {
 
       await page.click("#btn-annulla");
       await page.waitForTimeout(150);
-      await page.click(".btn-elimina");
+      await page.locator(".btn-elimina").first().click();
       await page.waitForTimeout(150);
       controlla("la conferma di eliminazione si apre", await page.evaluate(() => !!document.querySelector(".overlay-conferma")));
       await page.click("#annulla-elimina");
 
+      controlla("l'elenco mostra la categoria di Opera A (classificata)", /Ricami/.test(await page.evaluate(() => document.querySelectorAll(".opera-riga")[0].textContent)));
+      controlla("l'elenco mostra 'Da classificare' per Opera B (senza categoria)", /Da classificare/.test(await page.evaluate(() => document.querySelectorAll(".opera-riga")[1].textContent)));
+      controlla("il badge di un'opera senza categoria usa lo stile dedicato", await page.evaluate(() => document.querySelectorAll(".opera-riga")[1].querySelector(".badge-categoria.non-classificata") !== null));
+
+      await page.selectOption("#filtro-categoria", "ricami");
+      await page.waitForTimeout(100);
+      controlla("il filtro per categoria mostra solo le opere di quella categoria", (await page.evaluate(() => document.querySelectorAll(".opera-riga").length)) === 1);
+      await page.selectOption("#filtro-categoria", "_nessuna");
+      await page.waitForTimeout(100);
+      controlla("il filtro 'Da classificare' mostra solo le opere senza categoria", (await page.evaluate(() => document.querySelectorAll(".opera-riga").length)) === 1 && /Opera B/.test(await page.evaluate(() => document.querySelector(".opera-riga").textContent)));
+      await page.selectOption("#filtro-categoria", "");
+      await page.waitForTimeout(100);
+      controlla("il filtro 'Tutte' ripristina l'elenco completo", (await page.evaluate(() => document.querySelectorAll(".opera-riga").length)) === 2);
+
       await page.click("#btn-logout");
       await page.waitForTimeout(200);
       controlla("il logout chiama auth.signOut()", await page.evaluate(() => window.__loggedOut === true));
+      await page.close();
+    }
+
+    // --- Campo categoria: nuova opera (selezione vuota obbligatoria) -----
+    {
+      const page = await browser.newPage();
+      const erroriPagina = [];
+      page.on("pageerror", (e) => erroriPagina.push(e.message));
+      await page.goto(`http://localhost:${PORT}/admin/test-mock.html?admin=si`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(300);
+      await page.click("#btn-aggiungi");
+      await page.waitForTimeout(150);
+
+      controlla("nuova opera: la categoria parte senza selezione (placeholder)", (await page.evaluate(() => document.getElementById("campo-categoria").value)) === "");
+
+      // Compila tutto TRANNE la categoria: foto e titolo validi, categoria
+      // lasciata sul placeholder vuoto e disabilitato.
+      await page.evaluate(() => {
+        const file = new File(["x"], "foto.jpg", { type: "image/jpeg" });
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        document.getElementById("campo-foto").files = dt.files;
+      });
+      await page.fill("#campo-titolo", "Opera senza categoria scelta");
+      await page.click("#btn-salva");
+      await page.waitForTimeout(200);
+      controlla("nuova opera: il salvataggio è bloccato se la categoria non è selezionata (validazione nativa del <select required>)", (await page.evaluate(() => window.__ultimoInsert)) === undefined);
+
+      await page.selectOption("#campo-categoria", "paciughi");
+      await page.click("#btn-salva");
+      await page.waitForTimeout(200);
+      const insertNuova = await page.evaluate(() => window.__ultimoInsert);
+      controlla("nuova opera: con una categoria scelta il salvataggio riesce e la invia correttamente", insertNuova && insertNuova.categoria === "paciughi");
+      controlla("nuova opera: nessun errore JavaScript durante tutto il flusso", erroriPagina.length === 0);
+      await page.close();
+    }
+
+    // --- Campo categoria: modifica di un'opera già classificata ---------
+    {
+      const page = await browser.newPage();
+      await page.goto(`http://localhost:${PORT}/admin/test-mock.html?admin=si`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(300);
+      await page.locator(".btn-modifica").first().click(); // Opera A, categoria "ricami"
+      await page.waitForTimeout(150);
+      controlla("modifica di un'opera classificata: il menu è precompilato con la categoria corretta", (await page.evaluate(() => document.getElementById("campo-categoria").value)) === "ricami");
+      controlla("modifica di un'opera classificata: nessun suggerimento di classificazione mancante", !(await page.evaluate(() => !!document.querySelector(".hint"))) || !(await page.evaluate(() => document.body.textContent.includes("non ha ancora una categoria"))));
+      await page.close();
+    }
+
+    // --- Campo categoria: modifica di un'opera senza categoria ----------
+    {
+      const page = await browser.newPage();
+      await page.goto(`http://localhost:${PORT}/admin/test-mock.html?admin=si`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(300);
+      await page.locator(".btn-modifica").nth(1).click(); // Opera B, categoria NULL
+      await page.waitForTimeout(150);
+      controlla("modifica di un'opera senza categoria: il menu parte vuoto (nessuna preselezione arbitraria)", (await page.evaluate(() => document.getElementById("campo-categoria").value)) === "");
+      controlla("modifica di un'opera senza categoria: viene mostrato un avviso esplicito", await page.evaluate(() => document.body.textContent.includes("non ha ancora una categoria")));
+
+      await page.selectOption("#campo-categoria", "fuori_di_tela");
+      await page.click("#btn-salva");
+      await page.waitForTimeout(200);
+      const updateOperaB = await page.evaluate(() => window.__ultimoUpdate);
+      controlla("modifica di un'opera senza categoria: la classificazione scelta viene salvata correttamente", updateOperaB && updateOperaB.categoria === "fuori_di_tela");
+      await page.close();
+    }
+
+    // --- Campo categoria: difesa lato interfaccia contro un valore
+    // manomesso (non selezionabile dal menu reale) ----------------------
+    {
+      const page = await browser.newPage();
+      await page.goto(`http://localhost:${PORT}/admin/test-mock.html?admin=si`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(300);
+      await page.click("#btn-aggiungi");
+      await page.waitForTimeout(150);
+
+      await page.evaluate(() => {
+        const file = new File(["x"], "foto.jpg", { type: "image/jpeg" });
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        document.getElementById("campo-foto").files = dt.files;
+      });
+      await page.fill("#campo-titolo", "Opera con categoria manomessa");
+      await page.evaluate(() => {
+        // Simula una manomissione del DOM (es. da devtools): un'opzione con
+        // un valore che l'interfaccia non offre mai normalmente.
+        const sel = document.getElementById("campo-categoria");
+        const opt = document.createElement("option");
+        opt.value = "colore-a-caso";
+        opt.textContent = "Colore a caso";
+        sel.appendChild(opt);
+        sel.value = "colore-a-caso";
+      });
+      // requestSubmit (non .click() sul bottone) per bypassare la validazione
+      // nativa del browser e verificare che sia il controllo esplicito in
+      // app.js, non solo l'HTML, a fermare un valore non ammesso.
+      await page.evaluate(() => document.getElementById("form-opera").requestSubmit());
+      await page.waitForTimeout(200);
+      controlla("categoria manomessa: il salvataggio viene bloccato anche aggirando la validazione nativa del <select>", (await page.evaluate(() => window.__ultimoInsert)) === undefined);
+      controlla("categoria manomessa: viene mostrato un messaggio di errore chiaro in italiano", await page.evaluate(() => document.getElementById("esito-form").textContent.includes("categoria valida")));
       await page.close();
     }
 
@@ -241,6 +361,7 @@ async function main() {
       controlla("l'anteprima della foto ridimensionata si mostra", anteprimaVisibile);
 
       await page.fill("#campo-titolo", "Opera di prova ridimensionamento");
+      await page.selectOption("#campo-categoria", "ricami");
       await page.click("#btn-salva");
       await page.waitForTimeout(300);
 
@@ -303,6 +424,7 @@ async function main() {
       // Il pulsante di salvataggio deve usare B (il file ATTUALMENTE nel
       // campo), non un risultato misto o quello di A.
       await page.fill("#campo-titolo", "Opera di prova race condition");
+      await page.selectOption("#campo-categoria", "ricami");
       await page.click("#btn-salva");
       await page.waitForTimeout(200);
       const [uploadRace, insertRace] = await page.evaluate(() => [window.__ultimoUpload, window.__ultimoInsert]);
@@ -338,6 +460,7 @@ async function main() {
       await page.waitForTimeout(150);
 
       await page.fill("#campo-titolo", "Opera con elaborazione fallita");
+      await page.selectOption("#campo-categoria", "ricami");
       await page.click("#btn-salva");
       await page.waitForTimeout(200);
       const insertFallito = await page.evaluate(() => window.__ultimoInsert);
@@ -437,6 +560,7 @@ async function main() {
       controlla("profilo colore esteso: NON dichiara un'ottimizzazione avvenuta", !/ottimizzata per il web/i.test(testoEsito));
 
       await page.fill("#campo-titolo", "Opera con profilo colore esteso");
+      await page.selectOption("#campo-categoria", "ricami");
       await page.click("#btn-salva");
       await page.waitForTimeout(300);
       const [uploadIcc, insertIcc] = await page.evaluate(() => [window.__ultimoUpload, window.__ultimoInsert]);
@@ -459,7 +583,7 @@ async function main() {
       page.on("pageerror", (e) => erroriPagina.push(e.message));
       await page.goto(`http://localhost:${PORT}/admin/test-mock.html?admin=si`, { waitUntil: "networkidle" });
       await page.waitForTimeout(300);
-      await page.click(".btn-modifica");
+      await page.locator(".btn-modifica").first().click(); // Opera A, già classificata "ricami"
       await page.waitForTimeout(150);
       controlla("modifica: il modulo si apre precompilato con i dati dell'opera esistente", (await page.evaluate(() => document.getElementById("campo-titolo")?.value)) === "Opera A");
 

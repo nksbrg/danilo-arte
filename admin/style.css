@@ -40,13 +40,14 @@ label { display: block; font-weight: 600; margin: 12px 0 4px; }
 label .facoltativo { font-weight: 400; color: #666; font-size: 0.85em; }
 
 input[type="text"], input[type="email"], input[type="password"], input[type="number"],
-textarea, input[type="file"] {
+textarea, input[type="file"], select {
   width: 100%;
   padding: 10px;
   font-size: 1rem;
   border: 1px solid var(--bordo);
   border-radius: 6px;
   font-family: inherit;
+  background: #fff;
 }
 
 textarea { min-height: 90px; resize: vertical; }
@@ -85,6 +86,17 @@ button + button { margin-left: 8px; }
 .opera-riga .info { flex: 1; min-width: 0; }
 .opera-riga .info strong { display: block; }
 .opera-riga .azioni { white-space: nowrap; }
+
+.badge-categoria {
+  display: inline-block; margin-top: 4px; padding: 2px 9px;
+  border-radius: 999px; font-size: 0.78em; font-weight: 600;
+  background: #eee; color: #444;
+}
+.badge-categoria.non-classificata { background: #fdf0d5; color: #8a5a00; }
+
+.filtro-riga { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.filtro-riga label { margin: 0; white-space: nowrap; }
+.filtro-riga select { width: auto; min-width: 200px; }
 
 .anteprima-foto {
   max-width: 220px; max-height: 220px; display: block; margin-top: 8px;

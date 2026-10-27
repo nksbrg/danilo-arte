@@ -94,6 +94,15 @@
   .opere { padding:100px 40px; background:var(--cream); }
   .opere-header { display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:60px; }
   .opere-header .section-title { color:var(--black); }
+  .nascosto { display:none; }
+  .opere-quicklinks { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:48px; }
+  .opere-quicklinks .tag { text-decoration:none; cursor:pointer; transition:transform 0.2s; }
+  .opere-quicklinks .tag:hover { transform:translate(-2px,-2px); }
+  .opere-sezione { scroll-margin-top:90px; margin-top:56px; padding-top:56px; border-top:3px solid var(--black); }
+  .opere-sezione:first-of-type { margin-top:0; padding-top:0; border-top:none; }
+  .opere-sezione-provvisoria .section-label { color:#999; }
+  .opere-sezione-provvisoria .section-title { font-size:clamp(1.8rem,4vw,2.8rem); }
+  .opere-sezione-nota { color:#666; font-size:0.92rem; margin:-12px 0 24px; max-width:560px; }
   .gallery { columns:3; column-gap:12px; }
   .gallery-item { break-inside:avoid; margin-bottom:12px; border:3px solid var(--black); overflow:hidden; position:relative; cursor:pointer; display:block; }
   .gallery-item img { width:100%; display:block; transition:transform 0.4s; min-height:200px; object-fit:cover; }
@@ -300,8 +309,41 @@
     </div>
     <a href="#contatti" class="btn btn-primary">Acquista un'opera</a>
   </div>
-  <div class="gallery" id="gallery">
-    <p class="gallery-loading">Carico le opere... 🎨</p>
+
+  <div class="opere-quicklinks reveal" role="navigation" aria-label="Vai a una categoria di opere">
+    <a href="#ricami" class="tag tag-yellow">Ricami</a>
+    <a href="#fuori-di-tela" class="tag tag-red">Fuori di tela</a>
+    <a href="#paciughi" class="tag tag-green">Paciughi</a>
+  </div>
+
+  <p class="gallery-loading" id="opere-caricamento">Carico le opere... 🎨</p>
+  <div class="gallery-error nascosto" id="opere-errore"></div>
+
+  <div id="opere-contenuto" class="nascosto">
+    <div class="opere-sezione" id="ricami">
+      <p class="section-label">01</p>
+      <h3 class="section-title">Ricami</h3>
+      <div class="gallery" id="gallery-ricami"></div>
+    </div>
+
+    <div class="opere-sezione" id="fuori-di-tela">
+      <p class="section-label">02</p>
+      <h3 class="section-title">Fuori di tela</h3>
+      <div class="gallery" id="gallery-fuori-di-tela"></div>
+    </div>
+
+    <div class="opere-sezione" id="paciughi">
+      <p class="section-label">03</p>
+      <h3 class="section-title">Paciughi</h3>
+      <div class="gallery" id="gallery-paciughi"></div>
+    </div>
+
+    <div class="opere-sezione opere-sezione-provvisoria nascosto" id="opere-da-classificare">
+      <p class="section-label">Provvisorio</p>
+      <h3 class="section-title">Da classificare</h3>
+      <p class="opere-sezione-nota">Opere non ancora assegnate a una categoria: restano visibili qui finché Danilo non le classifica dal pannello.</p>
+      <div class="gallery" id="gallery-da-classificare"></div>
+    </div>
   </div>
 </section>
 
@@ -448,7 +490,7 @@
     try {
       const base = window.SUPABASE_URL.replace(/\/$/, '');
       const url = base +
-        '/rest/v1/opere?select=titolo,tecnica,dimensioni,anno,descrizione,image_path,larghezza_px,altezza_px' +
+        '/rest/v1/opere?select=titolo,tecnica,dimensioni,anno,descrizione,image_path,categoria,larghezza_px,altezza_px' +
         '&order=ordine.asc,titolo.asc';
       const res = await fetch(url, {
         headers: {
@@ -469,6 +511,7 @@
           anno: r.anno,
           descrizione: r.descrizione,
           immagine: baseStorage + r.image_path,
+          categoria: r.categoria || null,
           larghezzaPx: r.larghezza_px || null,
           altezzaPx: r.altezza_px || null,
         }));
@@ -477,87 +520,139 @@
     }
   }
 
+  // Costruisce l'elemento <div class="gallery-item"> per una singola opera:
+  // stesso markup/comportamento di sempre (overlay, lightbox), estratto in
+  // una funzione a sé perché ora viene usato per quattro gallerie diverse
+  // (una per categoria, più quella provvisoria "da classificare") invece di
+  // una sola.
+  function creaElementoGalleria(op) {
+    const item = document.createElement('div');
+    item.className = 'gallery-item reveal';
+    const img = document.createElement('img');
+    img.src = op.immagine;
+    img.alt = op.titolo || '';
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    // Riserva lo spazio corretto prima che la foto si carichi (riduce il
+    // layout shift): solo se le dimensioni sono note (opere caricate dopo
+    // l'introduzione di questo campo). La galleria resta a colonne in stile
+    // mosaico, con width:100% via CSS: gli attributi width/height servono
+    // solo a far calcolare al browser il rapporto d'aspetto corretto in
+    // anticipo, non a forzare una dimensione fissa.
+    if (op.larghezzaPx && op.altezzaPx) {
+      img.width = op.larghezzaPx;
+      img.height = op.altezzaPx;
+    }
+    const overlayMeta = [op.anno, op.tecnica].filter(Boolean).join(' · ');
+    const lightboxMeta = [op.anno, op.tecnica, op.dimensioni].filter(Boolean).join(' · ');
+    let snippet = (op.descrizione || '').trim().replace(/\s+/g, ' ');
+    if (snippet.length > 140) snippet = snippet.slice(0, 137) + '…';
+    item.appendChild(img);
+    const overlay = document.createElement('div');
+    overlay.className = 'gallery-overlay';
+    const inner = document.createElement('div');
+    const tit = document.createElement('div');
+    tit.className = 'gallery-overlay-text';
+    tit.textContent = op.titolo || '';
+    inner.appendChild(tit);
+    if (overlayMeta) {
+      const m = document.createElement('div');
+      m.className = 'gallery-overlay-meta';
+      m.textContent = overlayMeta;
+      inner.appendChild(m);
+    }
+    if (op.dimensioni) {
+      const d = document.createElement('div');
+      d.className = 'gallery-overlay-dim';
+      d.textContent = op.dimensioni;
+      inner.appendChild(d);
+    }
+    if (snippet) {
+      const s = document.createElement('div');
+      s.className = 'gallery-overlay-snippet';
+      s.textContent = snippet;
+      inner.appendChild(s);
+    }
+    overlay.appendChild(inner);
+    item.appendChild(overlay);
+    item.addEventListener('click', () => {
+      openLightbox(op.immagine, op.titolo || '', lightboxMeta, op.descrizione || '');
+    });
+    return item;
+  }
+
+  // Popola la galleria "containerId" con "listaOpere" (già filtrata per
+  // categoria da caricaOpere). L'ordine relativo delle opere è quello già
+  // deciso dalla query (ordine.asc,titolo.asc): filtrare per categoria non
+  // lo altera, quindi l'ordinamento resta coerente all'interno di ciascuna
+  // sezione.
+  function popolaGalleria(containerId, listaOpere) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    if (!listaOpere.length) {
+      container.innerHTML = '<p class="gallery-loading">Nessuna opera in questa categoria, per ora.</p>';
+      return;
+    }
+    listaOpere.forEach(op => {
+      if (!op.immagine) return;
+      const item = creaElementoGalleria(op);
+      container.appendChild(item);
+      observer.observe(item);
+    });
+  }
+
   async function caricaOpere() {
-    const gallery = document.getElementById('gallery');
+    const caricamento = document.getElementById('opere-caricamento');
+    const errore = document.getElementById('opere-errore');
+    const contenuto = document.getElementById('opere-contenuto');
     try {
       let opere = await recuperaCatalogoSupabase();
 
-
       if (!opere.length) {
-        gallery.innerHTML = '<p class="gallery-loading">Nessuna opera pubblicata ancora.</p>';
+        caricamento.textContent = 'Nessuna opera pubblicata ancora.';
         return;
       }
 
       popolaHeroMosaic(opere);
 
-      gallery.innerHTML = '';
+      // Suddivisione per categoria: stesso elenco, stesso ordinamento
+      // globale (ordine.asc,titolo.asc), solo filtrato. Le opere con una
+      // categoria non fra le tre ammesse (non dovrebbe mai accadere, vedi il
+      // vincolo CHECK nel database) finiscono comunque nella sezione
+      // provvisoria invece di sparire silenziosamente.
+      const CATEGORIE_VALIDE = ['ricami', 'fuori_di_tela', 'paciughi'];
+      const perCategoria = { ricami: [], fuori_di_tela: [], paciughi: [] };
+      const daClassificare = [];
       opere.forEach(op => {
-        if (!op.immagine) return;
-        const item = document.createElement('div');
-        item.className = 'gallery-item reveal';
-        const img = document.createElement('img');
-        img.src = op.immagine;
-        img.alt = op.titolo || '';
-        img.loading = 'lazy';
-        img.decoding = 'async';
-        // Riserva lo spazio corretto prima che la foto si carichi (riduce il
-        // layout shift): solo se le dimensioni sono note (opere caricate
-        // dopo l'introduzione di questo campo). La galleria resta a colonne
-        // in stile mosaico, con width:100% via CSS: gli attributi width/
-        // height servono solo a far calcolare al browser il rapporto
-        // d'aspetto corretto in anticipo, non a forzare una dimensione fissa.
-        if (op.larghezzaPx && op.altezzaPx) {
-          img.width = op.larghezzaPx;
-          img.height = op.altezzaPx;
-        }
-        const overlayMeta = [op.anno, op.tecnica].filter(Boolean).join(' · ');
-        const lightboxMeta = [op.anno, op.tecnica, op.dimensioni].filter(Boolean).join(' · ');
-        let snippet = (op.descrizione || '').trim().replace(/\s+/g, ' ');
-        if (snippet.length > 140) snippet = snippet.slice(0, 137) + '…';
-        item.appendChild(img);
-        const overlay = document.createElement('div');
-        overlay.className = 'gallery-overlay';
-        const inner = document.createElement('div');
-        const tit = document.createElement('div');
-        tit.className = 'gallery-overlay-text';
-        tit.textContent = op.titolo || '';
-        inner.appendChild(tit);
-        if (overlayMeta) {
-          const m = document.createElement('div');
-          m.className = 'gallery-overlay-meta';
-          m.textContent = overlayMeta;
-          inner.appendChild(m);
-        }
-        if (op.dimensioni) {
-          const d = document.createElement('div');
-          d.className = 'gallery-overlay-dim';
-          d.textContent = op.dimensioni;
-          inner.appendChild(d);
-        }
-        if (snippet) {
-          const s = document.createElement('div');
-          s.className = 'gallery-overlay-snippet';
-          s.textContent = snippet;
-          inner.appendChild(s);
-        }
-        overlay.appendChild(inner);
-        item.appendChild(overlay);
-        item.addEventListener('click', () => {
-          openLightbox(op.immagine, op.titolo || '', lightboxMeta, op.descrizione || '');
-        });
-        gallery.appendChild(item);
-        observer.observe(item);
+        if (CATEGORIE_VALIDE.includes(op.categoria)) perCategoria[op.categoria].push(op);
+        else daClassificare.push(op);
       });
+
+      popolaGalleria('gallery-ricami', perCategoria.ricami);
+      popolaGalleria('gallery-fuori-di-tela', perCategoria.fuori_di_tela);
+      popolaGalleria('gallery-paciughi', perCategoria.paciughi);
+
+      // La sezione "da classificare" è temporanea: appare SOLO se esiste
+      // davvero almeno un'opera senza categoria valida. Una volta che Danilo
+      // avrà classificato tutte le opere, questo blocco resta nascosto e la
+      // homepage mostra soltanto le tre sezioni definitive.
+      if (daClassificare.length) {
+        document.getElementById('opere-da-classificare').classList.remove('nascosto');
+        popolaGalleria('gallery-da-classificare', daClassificare);
+      }
+
+      caricamento.classList.add('nascosto');
+      contenuto.classList.remove('nascosto');
     } catch (err) {
-      gallery.innerHTML = '';
-      const box = document.createElement('div');
-      box.className = 'gallery-error';
-      box.appendChild(document.createTextNode('Impossibile caricare le opere al momento.'));
-      box.appendChild(document.createElement('br'));
+      caricamento.classList.add('nascosto');
+      errore.innerHTML = '';
+      errore.appendChild(document.createTextNode('Impossibile caricare le opere al momento.'));
+      errore.appendChild(document.createElement('br'));
       const dettaglio = document.createElement('small');
       dettaglio.textContent = err && err.message ? err.message : 'Errore sconosciuto.';
-      box.appendChild(dettaglio);
-      gallery.appendChild(box);
+      errore.appendChild(dettaglio);
+      errore.classList.remove('nascosto');
     }
   }
 

@@ -62,6 +62,9 @@ run_sql "${REPO_ROOT}/supabase/tests/hardening.sql"
 echo "[run-rls-tests] Eseguo le asserzioni sul vincolo larghezza_px/altezza_px..."
 run_sql "${REPO_ROOT}/supabase/tests/dimensioni_immagine.sql"
 
+echo "[run-rls-tests] Eseguo le asserzioni sul vincolo categoria..."
+run_sql "${REPO_ROOT}/supabase/tests/categorie_opere.sql"
+
 echo "[run-rls-tests] Pulizia..."
 psql_super -c "drop database if exists ${DB_NAME}" >/dev/null
 

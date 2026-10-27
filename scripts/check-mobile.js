@@ -104,7 +104,12 @@ async function main() {
         controlla(`${nome}: tap su chiudi richiude il menu`, menuChiuso);
       }
 
-      const colonneGalleria = await page.evaluate(() => getComputedStyle(document.getElementById("gallery")).columnCount);
+      // "gallery-ricami" è una delle quattro gallerie (una per categoria più
+      // quella provvisoria "da classificare", vedi CATEGORIE-OPERE.md):
+      // condividono tutte la stessa classe/regola CSS ".gallery", quindi
+      // basta verificarne una per controllare il comportamento a colonne a
+      // ogni breakpoint.
+      const colonneGalleria = await page.evaluate(() => getComputedStyle(document.getElementById("gallery-ricami")).columnCount);
       const atteso = profilo.viewport.width <= 540 ? "1" : profilo.viewport.width <= 900 ? "2" : "3";
       controlla(`${nome}: la galleria usa ${atteso} colonna/e alla larghezza ${profilo.viewport.width}px (trovato: ${colonneGalleria})`, colonneGalleria === atteso);
 
