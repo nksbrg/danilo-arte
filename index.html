@@ -443,7 +443,7 @@
   // della migrazione a Supabase, tenuto come rete di sicurezza per un
   // rollback immediato e senza bisogno di un nuovo deploy del codice.
   async function recuperaCatalogoSupabase() {
-    if (!window.SUPABASE_URL || !window.SUPABASE_PUBLISHABLE_KEY) return null;
+    if (!window.SUPABASE_URL || !window.SUPABASE_PUBLISHABLE_KEY) return [];
     try {
       const base = window.SUPABASE_URL.replace(/\/$/, '');
       const url = base +
@@ -455,9 +455,9 @@
           Authorization: 'Bearer ' + window.SUPABASE_PUBLISHABLE_KEY,
         },
       });
-      if (!res.ok) return null;
+      if (!res.ok) throw new Error('Catalogo Supabase non disponibile');
       const righe = await res.json();
-      if (!Array.isArray(righe)) return null;
+      if (!Array.isArray(righe)) throw new Error('Catalogo Supabase non valido');
       const baseStorage = base + '/storage/v1/object/public/opere/';
       return righe
         .filter(r => r.image_path)
@@ -469,8 +469,8 @@
           descrizione: r.descrizione,
           immagine: baseStorage + r.image_path,
         }));
-    } catch (_) {
-      return null;
+    } catch (err) {
+      throw err;
     }
   }
 
@@ -479,12 +479,6 @@
     try {
       let opere = await recuperaCatalogoSupabase();
 
-      if (!opere) {
-        const res = await fetch('/data/opere.json', { cache: 'no-store' });
-        if (!res.ok) throw new Error('Catalogo non disponibile');
-        opere = await res.json();
-        if (!Array.isArray(opere)) throw new Error('Formato del catalogo non valido');
-      }
 
       if (!opere.length) {
         gallery.innerHTML = '<p class="gallery-loading">Nessuna opera pubblicata ancora.</p>';
