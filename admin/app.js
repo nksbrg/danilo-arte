@@ -82,6 +82,7 @@ function messaggioErroreSupabase(error) {
 let cambioPasswordRichiesto = /(?:^|[&#])type=(?:invite|recovery)(?:&|$)/.test(window.location.hash)
   || new URLSearchParams(window.location.search).get("type") === "recovery";
 let cambioPasswordInCorso = false;
+let attivazioneMfaInCorso = false;
 
 function renderNuovaPassword(messaggio) {
   app.innerHTML = `
@@ -240,6 +241,8 @@ async function instradaDopoLogin() {
 // ---------------------------------------------------------------------
 
 async function renderAttivazioneMfa() {
+  if (attivazioneMfaInCorso) return;
+  attivazioneMfaInCorso = true;
   app.innerHTML = `
     <h1>Attiva la verifica in due passaggi</h1>
     <div class="card">
@@ -256,6 +259,7 @@ async function renderAttivazioneMfa() {
   const riquadro = document.getElementById("riquadro-enroll");
 
   if (error) {
+    attivazioneMfaInCorso = false;
     riquadro.innerHTML = renderMessaggio("errore", messaggioErroreSupabase(error));
     return;
   }
@@ -289,6 +293,7 @@ async function renderAttivazioneMfa() {
       esito.innerHTML = renderMessaggio("errore", "Codice non corretto. Riprova.");
       return;
     }
+    attivazioneMfaInCorso = false;
     avvia();
   });
 }
@@ -362,7 +367,7 @@ async function renderDashboard(messaggio) {
   });
   document.getElementById("btn-aggiungi").addEventListener("click", () => renderFormOpera());
 
-  const { data: opere, error } = await supabase
+  const { data: opere, error } = await supabaseClient
     .from("opere")
     .select("id, titolo, tecnica, dimensioni, anno, descrizione, ordine, image_path")
     .order("ordine", { ascending: true })
