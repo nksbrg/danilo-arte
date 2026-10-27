@@ -1,19 +1,39 @@
 <!doctype html>
 <html lang="it">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="robots" content="noindex, nofollow" />
-  <title>Gestione opere — Danilo Bergaglio</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Gestione opere — Danilo Bergaglio</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!--
-    Pannello amministrativo Decap CMS (prototipo, Fase 3).
-    Non contiene credenziali: l'autenticazione è gestita da Decap Turbo
-    (decapcms.org/turbo), configurato in config.yml.
-    Vedi README-CMS.md nella root del repository per lo stato del prototipo
-    e i passaggi manuali ancora necessari prima dell'uso reale.
-  -->
-  <script src="https://unpkg.com/decap-cms@^3.17.0/dist/decap-cms.js"></script>
+<!--
+  Pannello amministrativo proprietario (Supabase Auth + Postgres + Storage).
+  Sostituisce Decap CMS. Vedi README-SUPABASE.md nella root del repository
+  per lo stato di collaudo, le variabili d'ambiente richieste e i passaggi
+  di attivazione.
+
+  Finché /admin (Decap CMS) resta attivo, questo pannello vive a un
+  indirizzo separato (/admin) e non lo sostituisce: è così di proposito,
+  per non disattivare un sistema funzionante prima del collaudo completo di
+  questo.
+-->
+<div id="app" aria-live="polite">Caricamento…</div>
+
+<!--
+  Nota sulla versione: Supabase documenta l'uso via tag <script> proprio con
+  questo URL a versione maggiore "flottante" (@2, non un numero di patch
+  fisso) per chi non usa un bundler — è la build UMD che espone "window.supabase"
+  con createClient(). In questo ambiente di sviluppo non è stato possibile
+  raggiungere jsdelivr.net per verificare dal vivo il caricamento (nessun
+  accesso a Internet nel sandbox): verificarlo al primo collaudo reale aprendo
+  la console del browser. Se si preferisce una versione fissa, sostituire "@2"
+  con il numero esatto pubblicato su npmjs.com/package/@supabase/supabase-js.
+-->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/supabase-config.js"></script>
+<script src="validazione.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

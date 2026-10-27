@@ -381,6 +381,7 @@
   <div class="lightbox-desc" id="lightboxDesc" hidden></div>
 </div>
 
+<script src="/supabase-config.js"></script>
 <script>
   // Nav
   const hamburger = document.getElementById('hamburger');
@@ -434,17 +435,50 @@
     });
   }
 
-  // Carica il catalogo opere generato a build time dal CMS
-  // (content/opere/*.json → scripts/build.js → data/opere.json).
-  // Nessuna chiamata a servizi esterni: se il catalogo manca o è vuoto,
-  // la galleria mostra semplicemente un messaggio.
+  // Carica le opere da Supabase (lettura pubblica via RLS, vedi
+  // supabase/migrations/). Se Supabase non è configurato (variabili
+  // d'ambiente assenti) o la richiesta fallisce, ripiega sul catalogo
+  // statico generato a build time da scripts/build.js
+  // (content/opere/*.json → data/opere.json) — il percorso usato prima
+  // della migrazione a Supabase, tenuto come rete di sicurezza per un
+  // rollback immediato e senza bisogno di un nuovo deploy del codice.
+  async function recuperaCatalogoSupabase() {
+    if (!window.SUPABASE_URL || !window.SUPABASE_PUBLISHABLE_KEY) return [];
+    try {
+      const base = window.SUPABASE_URL.replace(/\/$/, '');
+      const url = base +
+        '/rest/v1/opere?select=titolo,tecnica,dimensioni,anno,descrizione,image_path' +
+        '&order=ordine.asc,titolo.asc';
+      const res = await fetch(url, {
+        headers: {
+          apikey: window.SUPABASE_PUBLISHABLE_KEY,
+          Authorization: 'Bearer ' + window.SUPABASE_PUBLISHABLE_KEY,
+        },
+      });
+      if (!res.ok) throw new Error('Catalogo Supabase non disponibile');
+      const righe = await res.json();
+      if (!Array.isArray(righe)) throw new Error('Catalogo Supabase non valido');
+      const baseStorage = base + '/storage/v1/object/public/opere/';
+      return righe
+        .filter(r => r.image_path)
+        .map(r => ({
+          titolo: r.titolo,
+          tecnica: r.tecnica,
+          dimensioni: r.dimensioni,
+          anno: r.anno,
+          descrizione: r.descrizione,
+          immagine: baseStorage + r.image_path,
+        }));
+    } catch (err) {
+      throw err;
+    }
+  }
+
   async function caricaOpere() {
     const gallery = document.getElementById('gallery');
     try {
-      const res = await fetch('/data/opere.json', { cache: 'no-store' });
-      if (!res.ok) throw new Error('Catalogo non disponibile');
-      const opere = await res.json();
-      if (!Array.isArray(opere)) throw new Error('Formato del catalogo non valido');
+      let opere = await recuperaCatalogoSupabase();
+
 
       if (!opere.length) {
         gallery.innerHTML = '<p class="gallery-loading">Nessuna opera pubblicata ancora.</p>';
