@@ -262,6 +262,81 @@ async function main() {
       }
     }
 
+    // --- Layout della fotografia: una sola opera per categoria (regressione
+    // introdotta da questa stessa PR nella versione precedente di questo
+    // branch) -------------------------------------------------------------
+    // Con `columns:3` fisso su ogni galleria, una categoria con una sola
+    // opera (come nella situazione reale attuale) lasciava 2 colonne vuote e
+    // comprimeva l'unica immagine in una colonna stretta, che min-height
+    // forzava a un'altezza sproporzionata: esattamente "stretta ed
+    // eccessivamente alta, con enormi spazi vuoti" riportato dall'utente.
+    // Verifica che l'immagine occupi invece l'intera larghezza della
+    // galleria, con un'altezza proporzionata (non quella forzata da
+    // min-height su una colonna stretta), indipendentemente dalle altre
+    // categorie (vedi anche il controllo successivo con molte opere).
+    {
+      const catalogoUnaOpera = [
+        { titolo: "Ricamo Unico", categoria: "ricami", ordine: 1, image_path: "opera-prova-1.jpg", tecnica: "Ricamo", dimensioni: "30x30cm", anno: 2024, descrizione: "" },
+        { titolo: "Fuori Unico", categoria: "fuori_di_tela", ordine: 1, image_path: "opera-prova-2.jpg", tecnica: "Mista", dimensioni: "40x40cm", anno: 2024, descrizione: "" },
+        { titolo: "Paciugo Unico", categoria: "paciughi", ordine: 1, image_path: "opera-prova-3.jpg", tecnica: "Acrilico", dimensioni: "50x50cm", anno: 2024, descrizione: "" },
+      ];
+      const server = avviaServer(catalogoUnaOpera);
+      await new Promise((resolve) => server.listen(PORT, resolve));
+      try {
+        const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+        await page.goto(`http://localhost:${PORT}/index.html`, { waitUntil: "networkidle" });
+        await page.waitForTimeout(400);
+
+        for (const [nomeSezione, idGalleria] of [["Ricami", "gallery-ricami"], ["Fuori di tela", "gallery-fuori-di-tela"], ["Paciughi", "gallery-paciughi"]]) {
+          const info = await page.evaluate((id) => {
+            const container = document.getElementById(id);
+            const item = container.querySelector(".gallery-item");
+            const rectContainer = container.getBoundingClientRect();
+            const rectItem = item.getBoundingClientRect();
+            return {
+              colonne: getComputedStyle(container).columnCount,
+              larghezzaContainer: rectContainer.width,
+              larghezzaItem: rectItem.width,
+              altezzaItem: rectItem.height,
+            };
+          }, idGalleria);
+          controlla(`${nomeSezione}, una sola opera: la galleria usa 1 colonna (non 3 fisse)`, info.colonne === "1");
+          controlla(`${nomeSezione}, una sola opera: l'immagine occupa l'intera larghezza della galleria, non 1/3`, Math.abs(info.larghezzaItem - info.larghezzaContainer) < 2);
+          // Prima della correzione, con la colonna compressa a ~1/3 della
+          // larghezza, min-height:200px dominava e produceva un riquadro
+          // alto quasi quanto largo (circa 200px) nonostante il formato
+          // reale della foto di prova sia orizzontale (1200x900, ~4:3):
+          // un'altezza vicina al minimo forzato segnala la regressione.
+          controlla(`${nomeSezione}, una sola opera: l'altezza è proporzionata alla larghezza reale (non il minimo forzato da una colonna stretta)`, info.altezzaItem > 220);
+        }
+
+        await page.close();
+      } finally {
+        server.close();
+      }
+    }
+
+    // --- Layout della fotografia: il mosaico a più colonne resta invariato
+    // quando una categoria ha abbastanza opere da riempirlo ---------------
+    {
+      const catalogoMolte = [];
+      for (let i = 1; i <= 5; i++) {
+        catalogoMolte.push({ titolo: `Ricamo ${i}`, categoria: "ricami", ordine: i, image_path: `opera-prova-${(i % 3) + 1}.jpg`, tecnica: "Ricamo", dimensioni: "10x10cm", anno: 2024, descrizione: "" });
+      }
+      const server = avviaServer(catalogoMolte);
+      await new Promise((resolve) => server.listen(PORT, resolve));
+      try {
+        const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+        await page.goto(`http://localhost:${PORT}/index.html`, { waitUntil: "networkidle" });
+        await page.waitForTimeout(400);
+        const colonne = await page.evaluate(() => getComputedStyle(document.getElementById("gallery-ricami")).columnCount);
+        controlla("categoria con 5 opere: il mosaico a 3 colonne resta quello originale (nessuna regressione nella direzione opposta)", colonne === "3");
+        await page.close();
+      } finally {
+        server.close();
+      }
+    }
+
     // --- Responsive mobile: nessun overflow, nessun errore ---------------
     {
       const catalogo = opereFinte({ conNonClassificate: true });
