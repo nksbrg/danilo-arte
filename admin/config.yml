@@ -10,14 +10,12 @@
 backend:
   name: turbo-github
   repo: nksbrg/danilo-arte
-  # Branch su cui Decap scrive i commit. Durante il collaudo punta al branch
-  # di prototipo, NON a main: nessuna modifica fatta da qui arriva al sito
-  # pubblico finché questo valore non viene cambiato in "main" a go-live.
-  branch: claude/clever-darwin-ay3nu6
+  # Branch principale collegato al deploy automatico Netlify.
+  branch: main
   # ID del sito creato nella dashboard Decap Turbo (decapcms.org/turbo) dopo
   # aver installato la Decap Turbo GitHub App su questo repository.
   # DA CONFIGURARE — vedi README-CMS.md, passo 1.
-  turbo_site_id: "DA-CONFIGURARE-turbo-site-id"
+  turbo_site_id: "c000d9c5-95dc-4100-a5ec-e9c4b51af8cb"
 
 # Interfaccia in italiano. Da verificare dal vivo: non è stato possibile
 # controllare in questo ambiente se la localizzazione "it" copre tutte le
