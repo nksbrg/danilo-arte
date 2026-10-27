@@ -3,8 +3,8 @@
 /**
  * Pannello amministrativo proprietario — Supabase Auth + Postgres + Storage.
  *
- * Le chiamate all'SDK Supabase JS v2 (supabase.auth.mfa.*, supabase.storage.*,
- * supabase.from(...)) sono scritte secondo l'API documentata v2 così come la
+ * Le chiamate all'SDK Supabase JS v2 (supabaseClient.auth.mfa.*, supabaseClient.storage.*,
+ * supabaseClient.from(...)) sono scritte secondo l'API documentata v2 così come la
  * conosco, ma NON è stato possibile eseguirle contro un vero progetto
  * Supabase in questo ambiente (nessun accesso a Internet nel sandbox di
  * sviluppo). Vedi README-SUPABASE.md, sezione "Cosa resta da verificare",
@@ -55,7 +55,7 @@ if (!window.supabase || typeof window.supabase.createClient !== "function") {
   throw new Error("Libreria Supabase non disponibile (CDN non raggiungibile?)");
 }
 
-const supabase = window.supabase.createClient(
+const supabaseClient = window.supabase.createClient(
   window.SUPABASE_URL,
   window.SUPABASE_PUBLISHABLE_KEY
 );
@@ -107,7 +107,7 @@ function renderNuovaPassword(messaggio) {
       return;
     }
     cambioPasswordInCorso = true;
-    const { error } = await supabase.auth.updateUser({ password });
+    const { error } = await supabaseClient.auth.updateUser({ password });
     cambioPasswordInCorso = false;
     if (error) {
       renderNuovaPassword({ tipo: "errore", testo: messaggioErroreSupabase(error) });
@@ -126,7 +126,7 @@ function renderNuovaPassword(messaggio) {
 
 async function avvia() {
   app.innerHTML = "Verifica dell'accesso in corso…";
-  const { data: { session }, error } = await supabase.auth.getSession();
+  const { data: { session }, error } = await supabaseClient.auth.getSession();
   if (error) {
     app.innerHTML = renderMessaggio("errore", messaggioErroreSupabase(error));
     return;
@@ -138,7 +138,7 @@ async function avvia() {
   await instradaDopoLogin();
 }
 
-supabase.auth.onAuthStateChange((evento, _sessione) => {
+supabaseClient.auth.onAuthStateChange((evento, _sessione) => {
   if (evento === "PASSWORD_RECOVERY") cambioPasswordRichiesto = true;
   if (evento === "USER_UPDATED" && cambioPasswordInCorso) return;
   // Ad ogni cambio di sessione (login, logout, refresh) ricalcoliamo la
@@ -176,7 +176,7 @@ function renderLogin(messaggio) {
     const password = document.getElementById("password").value;
     const bottone = e.target.querySelector("button");
     bottone.disabled = true;
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
     bottone.disabled = false;
     if (error) {
       renderLogin({ tipo: "errore", testo: "Accesso non riuscito: email o password non corrette." });
@@ -192,7 +192,7 @@ function renderLogin(messaggio) {
       renderLogin({ tipo: "errore", testo: "Inserisci prima la tua email, poi clicca di nuovo su \"Password dimenticata?\"." });
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin + "/admin/",
     });
     renderLogin(
@@ -210,7 +210,7 @@ function renderLogin(messaggio) {
 async function instradaDopoLogin() {
   app.innerHTML = "Verifica dell'autenticazione a due fattori…";
 
-  const { data: aal, error: erroreAal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  const { data: aal, error: erroreAal } = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
   if (erroreAal) {
     app.innerHTML = renderMessaggio("errore", messaggioErroreSupabase(erroreAal));
     return;
@@ -221,7 +221,7 @@ async function instradaDopoLogin() {
     return;
   }
 
-  const { data: fattori, error: erroreFattori } = await supabase.auth.mfa.listFactors();
+  const { data: fattori, error: erroreFattori } = await supabaseClient.auth.mfa.listFactors();
   if (erroreFattori) {
     app.innerHTML = renderMessaggio("errore", messaggioErroreSupabase(erroreFattori));
     return;
@@ -252,7 +252,7 @@ async function renderAttivazioneMfa() {
     </div>
   `;
 
-  const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp" });
+  const { data, error } = await supabaseClient.auth.mfa.enroll({ factorType: "totp" });
   const riquadro = document.getElementById("riquadro-enroll");
 
   if (error) {
@@ -277,12 +277,12 @@ async function renderAttivazioneMfa() {
     e.preventDefault();
     const codice = document.getElementById("codice-enroll").value.trim();
     const esito = document.getElementById("esito-enroll");
-    const { data: sfida, error: erroreSfida } = await supabase.auth.mfa.challenge({ factorId });
+    const { data: sfida, error: erroreSfida } = await supabaseClient.auth.mfa.challenge({ factorId });
     if (erroreSfida) {
       esito.innerHTML = renderMessaggio("errore", messaggioErroreSupabase(erroreSfida));
       return;
     }
-    const { error: erroreVerifica } = await supabase.auth.mfa.verify({
+    const { error: erroreVerifica } = await supabaseClient.auth.mfa.verify({
       factorId, challengeId: sfida.id, code: codice,
     });
     if (erroreVerifica) {
@@ -312,19 +312,19 @@ function renderSfidaMfa(factorId) {
   `;
 
   document.getElementById("annulla-sfida").addEventListener("click", async () => {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
   });
 
   document.getElementById("form-sfida-mfa").addEventListener("submit", async (e) => {
     e.preventDefault();
     const codice = document.getElementById("codice-sfida").value.trim();
     const esito = document.getElementById("esito-sfida");
-    const { data: sfida, error: erroreSfida } = await supabase.auth.mfa.challenge({ factorId });
+    const { data: sfida, error: erroreSfida } = await supabaseClient.auth.mfa.challenge({ factorId });
     if (erroreSfida) {
       esito.innerHTML = renderMessaggio("errore", messaggioErroreSupabase(erroreSfida));
       return;
     }
-    const { error: erroreVerifica } = await supabase.auth.mfa.verify({
+    const { error: erroreVerifica } = await supabaseClient.auth.mfa.verify({
       factorId, challengeId: sfida.id, code: codice,
     });
     if (erroreVerifica) {
@@ -340,7 +340,7 @@ function renderSfidaMfa(factorId) {
 // ---------------------------------------------------------------------
 
 function urlPubblicoImmagine(imagePath) {
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(imagePath);
+  const { data } = supabaseClient.storage.from(BUCKET).getPublicUrl(imagePath);
   return data.publicUrl;
 }
 
@@ -358,7 +358,7 @@ async function renderDashboard(messaggio) {
   `;
 
   document.getElementById("btn-logout").addEventListener("click", async () => {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
   });
   document.getElementById("btn-aggiungi").addEventListener("click", () => renderFormOpera());
 
@@ -436,7 +436,7 @@ function renderConfermaEliminazione(opera) {
   document.getElementById("conferma-elimina").addEventListener("click", async () => {
     const bottone = document.getElementById("conferma-elimina");
     bottone.disabled = true;
-    const { error } = await supabase.from("opere").delete().eq("id", opera.id);
+    const { error } = await supabaseClient.from("opere").delete().eq("id", opera.id);
     if (error) {
       document.getElementById("esito-elimina").innerHTML = renderMessaggio("errore", messaggioErroreSupabase(error));
       bottone.disabled = false;
@@ -444,7 +444,7 @@ function renderConfermaEliminazione(opera) {
     }
     // Pulizia della fotografia associata: best-effort, non blocca l'esito
     // (l'opera è già stata eliminata correttamente anche se questo fallisce).
-    await supabase.storage.from(BUCKET).remove([opera.image_path]).catch(() => {});
+    await supabaseClient.storage.from(BUCKET).remove([opera.image_path]).catch(() => {});
     sfondo.remove();
     renderDashboard({ tipo: "successo", testo: `"${opera.titolo}" eliminata.` });
   });
@@ -538,7 +538,7 @@ function renderFormOpera(opera) {
     let nuovoImagePath = null;
     if (file) {
       nuovoImagePath = `${new Date().getFullYear()}/${crypto.randomUUID()}.${estensioneDa(file)}`;
-      const { error: erroreUpload } = await supabase.storage
+      const { error: erroreUpload } = await supabaseClient.storage
         .from(BUCKET)
         .upload(nuovoImagePath, file, { contentType: file.type, upsert: false });
       if (erroreUpload) {
@@ -552,23 +552,23 @@ function renderFormOpera(opera) {
       if (inModifica) {
         const payload = { ...valori };
         if (nuovoImagePath) payload.image_path = nuovoImagePath;
-        const { error } = await supabase.from("opere").update(payload).eq("id", opera.id);
+        const { error } = await supabaseClient.from("opere").update(payload).eq("id", opera.id);
         if (error) throw error;
         if (nuovoImagePath && opera.image_path) {
           // Rimuove la vecchia foto SOLO dopo che il salvataggio è andato a
           // buon fine. Se questa pulizia fallisce non è un problema grave
           // (resta un file non più referenziato): non blocca il salvataggio.
-          await supabase.storage.from(BUCKET).remove([opera.image_path]).catch(() => {});
+          await supabaseClient.storage.from(BUCKET).remove([opera.image_path]).catch(() => {});
         }
       } else {
-        const { error } = await supabase.from("opere").insert({ ...valori, image_path: nuovoImagePath });
+        const { error } = await supabaseClient.from("opere").insert({ ...valori, image_path: nuovoImagePath });
         if (error) throw error;
       }
     } catch (error) {
       if (nuovoImagePath) {
         // Il salvataggio nel database è fallito ma la foto era già stata
         // caricata: la rimuoviamo per non lasciare un file orfano.
-        await supabase.storage.from(BUCKET).remove([nuovoImagePath]).catch(() => {});
+        await supabaseClient.storage.from(BUCKET).remove([nuovoImagePath]).catch(() => {});
       }
       esitoForm.innerHTML = renderMessaggio("errore", "Salvataggio non riuscito: " + messaggioErroreSupabase(error));
       btnSalva.disabled = false;
