@@ -375,7 +375,7 @@
 
 <div class="lightbox" id="lightbox">
   <span class="lightbox-close" onclick="closeLightbox()">✕</span>
-  <img class="lightbox-img" id="lightboxImg" src="" alt="">
+  <img class="lightbox-img" id="lightboxImg" src="" alt="" decoding="async">
   <div class="lightbox-caption" id="lightboxCaption"></div>
   <div class="lightbox-meta" id="lightboxMeta"></div>
   <div class="lightbox-desc" id="lightboxDesc" hidden></div>
@@ -431,6 +431,7 @@
       img.src = op.immagine;
       img.alt = op.titolo || '';
       img.loading = 'lazy';
+      img.decoding = 'async';
       cell.appendChild(img);
     });
   }
@@ -447,7 +448,7 @@
     try {
       const base = window.SUPABASE_URL.replace(/\/$/, '');
       const url = base +
-        '/rest/v1/opere?select=titolo,tecnica,dimensioni,anno,descrizione,image_path' +
+        '/rest/v1/opere?select=titolo,tecnica,dimensioni,anno,descrizione,image_path,larghezza_px,altezza_px' +
         '&order=ordine.asc,titolo.asc';
       const res = await fetch(url, {
         headers: {
@@ -468,6 +469,8 @@
           anno: r.anno,
           descrizione: r.descrizione,
           immagine: baseStorage + r.image_path,
+          larghezzaPx: r.larghezza_px || null,
+          altezzaPx: r.altezza_px || null,
         }));
     } catch (err) {
       throw err;
@@ -496,6 +499,17 @@
         img.src = op.immagine;
         img.alt = op.titolo || '';
         img.loading = 'lazy';
+        img.decoding = 'async';
+        // Riserva lo spazio corretto prima che la foto si carichi (riduce il
+        // layout shift): solo se le dimensioni sono note (opere caricate
+        // dopo l'introduzione di questo campo). La galleria resta a colonne
+        // in stile mosaico, con width:100% via CSS: gli attributi width/
+        // height servono solo a far calcolare al browser il rapporto
+        // d'aspetto corretto in anticipo, non a forzare una dimensione fissa.
+        if (op.larghezzaPx && op.altezzaPx) {
+          img.width = op.larghezzaPx;
+          img.height = op.altezzaPx;
+        }
         const overlayMeta = [op.anno, op.tecnica].filter(Boolean).join(' · ');
         const lightboxMeta = [op.anno, op.tecnica, op.dimensioni].filter(Boolean).join(' · ');
         let snippet = (op.descrizione || '').trim().replace(/\s+/g, ' ');

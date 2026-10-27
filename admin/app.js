@@ -25,6 +25,7 @@
 
 const BUCKET = "opere";
 const { escapeHtml, validaFile, estensioneDa } = window.Validazione;
+const { elaboraImmagine } = window.ElaborazioneImmagine;
 
 const app = document.getElementById("app");
 
@@ -428,11 +429,20 @@ function renderFormOpera(opera) {
   document.getElementById("btn-annulla").addEventListener("click", () => renderDashboard());
 
   const campoFoto = document.getElementById("campo-foto");
-  campoFoto.addEventListener("change", () => {
+  // Risultato dell'elaborazione (ridimensionamento/compressione) della foto
+  // scelta più di recente: { blob, larghezza, altezza, ridimensionata }.
+  // Calcolato una volta alla selezione del file e riusato al salvataggio,
+  // invece di rielaborare l'immagine ad ogni tentativo di invio.
+  let elaborazioneCorrente = null;
+  let generazioneElaborazione = 0;
+
+  campoFoto.addEventListener("change", async () => {
+    const miaGenerazione = ++generazioneElaborazione;
     const esitoFoto = document.getElementById("esito-foto");
     const anteprima = document.getElementById("anteprima-nuova-foto");
     esitoFoto.innerHTML = "";
     anteprima.classList.add("nascosto");
+    elaborazioneCorrente = null;
     const file = campoFoto.files[0];
     if (!file) return;
     const erroreValidazione = validaFile(file);
@@ -441,7 +451,16 @@ function renderFormOpera(opera) {
       campoFoto.value = "";
       return;
     }
-    anteprima.src = URL.createObjectURL(file);
+
+    esitoFoto.innerHTML = "Elaborazione della fotografia…";
+    const risultato = await elaboraImmagine(file);
+    if (miaGenerazione !== generazioneElaborazione) return; // è stata scelta un'altra foto nel frattempo
+
+    elaborazioneCorrente = risultato;
+    esitoFoto.innerHTML = risultato.ridimensionata
+      ? `<p class="hint">Fotografia ottimizzata per il web (${risultato.larghezza}×${risultato.altezza}px). L'opera verrà pubblicata con questa versione, senza ritagli né modifiche di colore.</p>`
+      : "";
+    anteprima.src = URL.createObjectURL(risultato.blob);
     anteprima.classList.remove("nascosto");
   });
 
@@ -464,11 +483,17 @@ function renderFormOpera(opera) {
     };
 
     let nuovoImagePath = null;
+    let nuoveDimensioni = null;
     if (file) {
+      // Normalmente già pronta (calcolata al momento della selezione): la
+      // ricalcoliamo solo se per qualche motivo manca ancora (es. invio del
+      // modulo prima che l'elaborazione, asincrona, sia terminata).
+      const elaborazione = elaborazioneCorrente || await elaboraImmagine(file);
+      nuoveDimensioni = { larghezza_px: elaborazione.larghezza, altezza_px: elaborazione.altezza };
       nuovoImagePath = `${new Date().getFullYear()}/${crypto.randomUUID()}.${estensioneDa(file)}`;
       const { error: erroreUpload } = await supabaseClient.storage
         .from(BUCKET)
-        .upload(nuovoImagePath, file, { contentType: file.type, upsert: false });
+        .upload(nuovoImagePath, elaborazione.blob, { contentType: file.type, upsert: false });
       if (erroreUpload) {
         esitoForm.innerHTML = renderMessaggio("errore", "Caricamento della foto non riuscito: " + messaggioErroreSupabase(erroreUpload));
         btnSalva.disabled = false;
@@ -479,7 +504,7 @@ function renderFormOpera(opera) {
     try {
       if (inModifica) {
         const payload = { ...valori };
-        if (nuovoImagePath) payload.image_path = nuovoImagePath;
+        if (nuovoImagePath) Object.assign(payload, { image_path: nuovoImagePath }, nuoveDimensioni);
         const { error } = await supabaseClient.from("opere").update(payload).eq("id", opera.id);
         if (error) throw error;
         if (nuovoImagePath && opera.image_path) {
@@ -489,7 +514,7 @@ function renderFormOpera(opera) {
           await supabaseClient.storage.from(BUCKET).remove([opera.image_path]).catch(() => {});
         }
       } else {
-        const { error } = await supabaseClient.from("opere").insert({ ...valori, image_path: nuovoImagePath });
+        const { error } = await supabaseClient.from("opere").insert({ ...valori, image_path: nuovoImagePath, ...nuoveDimensioni });
         if (error) throw error;
       }
     } catch (error) {

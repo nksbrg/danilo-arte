@@ -63,15 +63,29 @@ function client() {
     rpc: async (nome) => nome === "mio_stato_admin"
       ? { data: { is_admin: modalitaAdmin, has_mfa: false }, error: null }
       : { data: null, error: { message: "rpc sconosciuta" } },
-    from: () => ({ select: () => ({ order: () => ({ order: async () => ({ data: opere, error: null }) }) }) }),
-    storage: { from: () => ({ getPublicUrl: (p) => ({ data: { publicUrl: "https://esempio.supabase.co/storage/v1/object/public/opere/" + p } }) }) },
+    from: () => ({
+      select: () => ({ order: () => ({ order: async () => ({ data: opere, error: null }) }) }),
+      insert: (payload) => { window.__ultimoInsert = payload; return Promise.resolve({ error: null }); },
+      update: (payload) => ({ eq: () => { window.__ultimoUpdate = payload; return Promise.resolve({ error: null }); } }),
+      delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
+    }),
+    storage: {
+      from: () => ({
+        getPublicUrl: (p) => ({ data: { publicUrl: "https://esempio.supabase.co/storage/v1/object/public/opere/" + p } }),
+        upload: async (nomeFile, blob) => {
+          window.__ultimoUpload = { nomeFile, dimensioneByte: blob.size, tipo: blob.type };
+          return { error: null };
+        },
+        remove: async () => ({ error: null }),
+      }),
+    },
   };
 }
 window.supabase = { createClient: () => client() };
 window.__simulaEventiRavvicinati = () => { listenerAuth("SIGNED_IN", {}); listenerAuth("TOKEN_REFRESHED", {}); };
 `;
 
-const MOCK_HTML = `<!doctype html><html lang="it"><head><meta charset="UTF-8"><title>test</title><link rel="stylesheet" href="style.css"></head><body><div id="app"></div><script src="test-mock-setup.js"></script><script src="validazione.js"></script><script src="app.js"></script></body></html>`;
+const MOCK_HTML = `<!doctype html><html lang="it"><head><meta charset="UTF-8"><title>test</title><link rel="stylesheet" href="style.css"></head><body><div id="app"></div><script src="test-mock-setup.js"></script><script src="validazione.js"></script><script src="elaborazione-immagine.js"></script><script src="app.js"></script></body></html>`;
 
 fs.writeFileSync(path.join(DIST, "admin", "test-mock-setup.js"), MOCK_SETUP);
 fs.writeFileSync(path.join(DIST, "admin", "test-mock.html"), MOCK_HTML);
@@ -151,6 +165,55 @@ async function main() {
       controlla("utente non in whitelist vede 'Accesso non autorizzato'", (await page.evaluate(() => document.querySelector("h1")?.textContent)) === "Accesso non autorizzato");
       controlla("nessun controllo di gestione opere esposto", !(await page.evaluate(() => !!document.getElementById("btn-aggiungi"))));
       controlla("ha comunque un modo per uscire", await page.evaluate(() => !!document.getElementById("btn-logout-non-autorizzato")));
+      await page.close();
+    }
+
+    // --- Ridimensionamento reale di una foto grande durante l'upload ---
+    // Genera un'immagine 4800x3200 (tipica di una fotocamera) direttamente
+    // nel browser via canvas (nessun file di test da portarsi dietro) e la
+    // seleziona davvero nel campo file, esercitando il percorso completo:
+    // validazione -> elaborazione (ridimensionamento) -> upload -> payload
+    // salvato, con un client Supabase simulato che registra cosa riceve.
+    {
+      const page = await browser.newPage();
+      await page.goto(`http://localhost:${PORT}/admin/test-mock.html?admin=si`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(300);
+      await page.click("#btn-aggiungi");
+      await page.waitForTimeout(150);
+
+      const esito = await page.evaluate(async () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 4800;
+        canvas.height = 3200;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#b45a28";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95));
+        const file = new File([blob], "foto-grande.jpg", { type: "image/jpeg" });
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        const input = document.getElementById("campo-foto");
+        input.files = dt.files;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        return { dimensioneOriginaleByte: blob.size };
+      });
+
+      await page.waitForTimeout(900); // l'elaborazione (ridimensionamento+compressione) è asincrona
+      const testoEsito = await page.evaluate(() => document.getElementById("esito-foto")?.textContent || "");
+      controlla("mostra un messaggio di ottimizzazione per una foto grande", /ottimizzata per il web/i.test(testoEsito));
+      controlla("il messaggio riporta le nuove dimensioni (2400 sul lato lungo)", /2400/.test(testoEsito));
+      const anteprimaVisibile = await page.evaluate(() => !document.getElementById("anteprima-nuova-foto").classList.contains("nascosto"));
+      controlla("l'anteprima della foto ridimensionata si mostra", anteprimaVisibile);
+
+      await page.fill("#campo-titolo", "Opera di prova ridimensionamento");
+      await page.click("#btn-salva");
+      await page.waitForTimeout(300);
+
+      const [upload, insert] = await page.evaluate(() => [window.__ultimoUpload, window.__ultimoInsert]);
+      controlla("la foto caricata è più piccola dell'originale (4800x3200 -> max 2400px di lato)", upload && upload.dimensioneByte < esito.dimensioneOriginaleByte);
+      controlla("il payload salvato contiene le dimensioni corrette (2400x1600, proporzioni 3:2 invariate)", insert && insert.larghezza_px === 2400 && insert.altezza_px === 1600);
+      controlla("nessun ritaglio: l'opera è stata salvata senza errori", (await page.evaluate(() => document.querySelector("h1")?.textContent)) === "Le mie opere");
+
       await page.close();
     }
 
