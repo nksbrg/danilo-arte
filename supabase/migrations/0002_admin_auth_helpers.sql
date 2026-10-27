@@ -99,3 +99,8 @@ comment on function public.mio_stato_admin() is
   'Stato admin/MFA del SOLO utente che chiama. Usata dal pannello per i messaggi, non per decidere i permessi (quelli restano nelle policy RLS).';
 
 grant execute on function public.mio_stato_admin() to authenticated;
+
+-- Restrict privileged helpers to authenticated sessions only.
+revoke all on function public.is_admin() from public, anon;
+revoke all on function public.mio_stato_admin() from public, anon;
+grant execute on function public.is_admin() to authenticated;
