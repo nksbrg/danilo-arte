@@ -103,7 +103,15 @@
   .opere-sezione-provvisoria .section-label { color:#999; }
   .opere-sezione-provvisoria .section-title { font-size:clamp(1.8rem,4vw,2.8rem); }
   .opere-sezione-nota { color:#666; font-size:0.92rem; margin:-12px 0 24px; max-width:560px; }
-  .gallery { columns:3; column-gap:12px; }
+  /* column-count (non lo shorthand "columns", per usare min() in modo
+     affidabile) limitato al numero di opere REALMENTE presenti in questa
+     galleria (--n-opere, impostata da JS in popolaGalleria()): con 3 colonne
+     fisse, una categoria con 1-2 opere (come nella situazione attuale)
+     lasciava 1-2 colonne vuote e comprimeva l'unica immagine in una colonna
+     stretta, che min-height forzava a un'altezza sproporzionata rispetto
+     alla larghezza. A parità di contenuto, il comportamento resta identico
+     a prima (quando bastavano le opere per riempire 3 colonne). */
+  .gallery { column-count:min(3, var(--n-opere, 3)); column-gap:12px; }
   .gallery-item { break-inside:avoid; margin-bottom:12px; border:3px solid var(--black); overflow:hidden; position:relative; cursor:pointer; display:block; }
   .gallery-item img { width:100%; display:block; transition:transform 0.4s; min-height:200px; object-fit:cover; }
   .gallery-item:hover img { transform:scale(1.04); }
@@ -196,7 +204,7 @@
     .mosaic-grid { grid-template-rows:repeat(3,120px); transform:none; }
     .about { grid-template-columns:1fr; padding:60px 24px; gap:40px; }
     .about-photo-wrap { max-width:280px; }
-    .gallery { columns:2; }
+    .gallery { column-count:min(2, var(--n-opere, 2)); }
     .opere-header { flex-direction:column; align-items:flex-start; gap:16px; }
     .form-row { grid-template-columns:1fr; }
     footer { flex-direction:column; text-align:center; padding:32px 24px; }
@@ -594,6 +602,11 @@
       container.innerHTML = '<p class="gallery-loading">Nessuna opera in questa categoria, per ora.</p>';
       return;
     }
+    // Numero di colonne della galleria (vedi regola CSS ".gallery") mai
+    // superiore al numero di opere di QUESTA sezione: evita colonne vuote e
+    // l'immagine forzata in una colonna troppo stretta quando una categoria
+    // ha poche opere (anche una sola), indipendentemente dalle altre sezioni.
+    container.style.setProperty('--n-opere', String(listaOpere.length));
     listaOpere.forEach(op => {
       if (!op.immagine) return;
       const item = creaElementoGalleria(op);
