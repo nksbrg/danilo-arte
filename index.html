@@ -107,12 +107,18 @@
      affidabile) limitato al numero di opere REALMENTE presenti in questa
      galleria (--n-opere, impostata da JS in popolaGalleria()): con 3 colonne
      fisse, una categoria con 1-2 opere (come nella situazione attuale)
-     lasciava 1-2 colonne vuote e comprimeva l'unica immagine in una colonna
-     stretta, che min-height forzava a un'altezza sproporzionata rispetto
-     alla larghezza. A parità di contenuto, il comportamento resta identico
-     a prima (quando bastavano le opere per riempire 3 colonne). */
-  .gallery { column-count:min(3, var(--n-opere, 3)); column-gap:12px; }
-  .gallery-item { break-inside:avoid; margin-bottom:12px; border:3px solid var(--black); overflow:hidden; position:relative; cursor:pointer; display:block; }
+     lasciava 1-2 colonne vuote. --tile-ideale è la larghezza che UNA foto
+     avrebbe in un mosaico a 3 colonne pienamente popolato a questa stessa
+     larghezza di finestra (100vw meno il padding laterale di .opere e gli
+     spazi fra colonne): usata come max-width su .gallery-item, fa sì che
+     una categoria con poche opere mostri comunque fotografie delle stesse
+     dimensioni "a mosaico" di sempre, centrate nella colonna più larga che
+     column-count le assegna, invece di distendersi a riempirla per intero
+     (altrimenti "enormi" con poche opere). Quando le colonne reali sono già
+     3 (categoria ben popolata) il limite coincide con la larghezza naturale
+     della colonna e non cambia nulla: comportamento identico a prima. */
+  .gallery { column-count:min(3, var(--n-opere, 3)); column-gap:12px; --tile-ideale:calc((100vw - 104px) / 3); }
+  .gallery-item { break-inside:avoid; max-width:var(--tile-ideale, none); margin:0 auto 12px; border:3px solid var(--black); overflow:hidden; position:relative; cursor:pointer; display:block; }
   .gallery-item img { width:100%; display:block; transition:transform 0.4s; min-height:200px; object-fit:cover; }
   .gallery-item:hover img { transform:scale(1.04); }
   .gallery-overlay { position:absolute; inset:0; background:rgba(26,26,26,0.75); display:flex; align-items:flex-end; padding:20px; opacity:0; transition:opacity 0.3s; }
@@ -204,14 +210,20 @@
     .mosaic-grid { grid-template-rows:repeat(3,120px); transform:none; }
     .about { grid-template-columns:1fr; padding:60px 24px; gap:40px; }
     .about-photo-wrap { max-width:280px; }
-    .gallery { column-count:min(2, var(--n-opere, 2)); }
+    /* Stesso principio sopra, con il padding laterale (24px) e il numero
+       di colonne (2) di questo breakpoint. */
+    .gallery { column-count:min(2, var(--n-opere, 2)); --tile-ideale:calc((100vw - 60px) / 2); }
     .opere-header { flex-direction:column; align-items:flex-start; gap:16px; }
     .form-row { grid-template-columns:1fr; }
     footer { flex-direction:column; text-align:center; padding:32px 24px; }
     .opere, .contatti-head, .contatti-group .contatti-form-area, .contatti-atelier { padding:60px 24px; }
   }
   @media (max-width:540px) {
-    .gallery { columns:1; }
+    /* Sempre 1 colonna qui, a prescindere dal numero di opere: non si è mai
+       presentato il problema delle colonne vuote a questa larghezza, quindi
+       nessun limite di larghezza extra sulla singola foto (comportamento
+       mobile invariato rispetto a sempre). */
+    .gallery { columns:1; --tile-ideale:none; }
     .hero-title { font-size:3rem; }
     .mosaic-grid { grid-template-rows:repeat(3,100px); gap:6px; }
     .nav-logo { font-size:clamp(1rem,5.2vw,1.35rem); max-width:calc(100vw - 58px); }
