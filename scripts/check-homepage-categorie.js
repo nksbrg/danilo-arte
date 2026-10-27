@@ -51,9 +51,15 @@ const MIME = { ".html": "text/html", ".js": "application/javascript", ".css": "t
 // restare quello di "ordine", non quello di arrivo dall'API).
 function opereFinte({ conNonClassificate }) {
   const base = [
+    // "Ricamo Uno" porta anche larghezza_px/altezza_px (PR #4,
+    // supabase/migrations/0007_dimensioni_immagine.sql): verifica che
+    // categoria e dimensioni dichiarate funzionino insieme, nella stessa
+    // galleria di categoria, senza che l'una dipenda dalla presenza
+    // dell'altra (le altre opere di prova qui sotto NON hanno
+    // larghezza_px/altezza_px, come un'opera caricata prima della PR #4).
     { titolo: "Ricamo Tre", categoria: "ricami", ordine: 3, image_path: "opera-prova-1.jpg" },
     { titolo: "Paciugo Uno", categoria: "paciughi", ordine: 1, image_path: "opera-prova-2.jpg" },
-    { titolo: "Ricamo Uno", categoria: "ricami", ordine: 1, image_path: "opera-prova-3.jpg" },
+    { titolo: "Ricamo Uno", categoria: "ricami", ordine: 1, image_path: "opera-prova-3.jpg", larghezza_px: 1200, altezza_px: 900 },
     { titolo: "Fuori Due", categoria: "fuori_di_tela", ordine: 2, image_path: "opera-prova-1.jpg" },
     { titolo: "Ricamo Due", categoria: "ricami", ordine: 2, image_path: "opera-prova-2.jpg" },
     { titolo: "Fuori Uno", categoria: "fuori_di_tela", ordine: 1, image_path: "opera-prova-3.jpg" },
@@ -137,6 +143,25 @@ async function main() {
 
         const titoliRicami = await page.evaluate(() => Array.from(document.querySelectorAll("#gallery-ricami .gallery-overlay-text")).map((el) => el.textContent));
         controlla("la sezione Ricami contiene solo le opere di categoria 'ricami', in ordine corretto", JSON.stringify(titoliRicami) === JSON.stringify(["Ricamo Uno", "Ricamo Due", "Ricamo Tre"]));
+
+        // Integrazione categoria + larghezza_px/altezza_px (PR #4): "Ricamo
+        // Uno" ha entrambe le proprietà, le altre opere di Ricami no. Le due
+        // informazioni devono convivere nella stessa galleria di categoria,
+        // ciascuna applicata correttamente in base a cosa è disponibile per
+        // ogni singola opera.
+        const dimensioniImg = await page.evaluate(() => {
+          const immagini = Array.from(document.querySelectorAll("#gallery-ricami .gallery-item img"));
+          return immagini.map((img) => ({ haWidth: img.hasAttribute("width"), haHeight: img.hasAttribute("height"), decoding: img.decoding }));
+        });
+        controlla("l'opera con larghezza_px/altezza_px (Ricamo Uno) ha gli attributi width/height sull'immagine", dimensioniImg[0].haWidth && dimensioniImg[0].haHeight);
+        controlla("le altre opere di Ricami, senza quelle colonne valorizzate, non hanno width/height forzati", !dimensioniImg[1].haWidth && !dimensioniImg[2].haWidth);
+        controlla("tutte le immagini della galleria usano decoding=\"async\" indipendentemente dalla categoria", dimensioniImg.every((d) => d.decoding === "async"));
+        // img.width/img.height (proprietà IDL) riportano la dimensione
+        // RESA (vincolata da width:100% nel CSS della galleria), non
+        // l'attributo HTML: per verificare il valore effettivamente
+        // impostato da index.html si legge l'attributo direttamente.
+        const wxh = await page.evaluate(() => { const img = document.querySelector("#gallery-ricami .gallery-item img"); return [img.getAttribute("width"), img.getAttribute("height")]; });
+        controlla("gli attributi width/height riportano esattamente i valori di larghezza_px/altezza_px (1200x900)", wxh[0] === "1200" && wxh[1] === "900");
 
         const titoliFuori = await page.evaluate(() => Array.from(document.querySelectorAll("#gallery-fuori-di-tela .gallery-overlay-text")).map((el) => el.textContent));
         controlla("la sezione Fuori di tela contiene solo le proprie opere, in ordine corretto", JSON.stringify(titoliFuori) === JSON.stringify(["Fuori Uno", "Fuori Due"]));

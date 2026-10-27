@@ -25,6 +25,7 @@
 
 const BUCKET = "opere";
 const { escapeHtml, validaFile, estensioneDa } = window.Validazione;
+const { elaboraImmagine } = window.ElaborazioneImmagine;
 
 // Macro-categorie delle opere (vedi supabase/migrations/0008_categorie_opere.sql).
 // Valori tecnici stabili nel database, etichette leggibili solo qui.
@@ -488,11 +489,63 @@ function renderFormOpera(opera) {
   document.getElementById("btn-annulla").addEventListener("click", () => renderDashboard());
 
   const campoFoto = document.getElementById("campo-foto");
+  // Catturati una sola volta qui (non ri-letti con document.getElementById
+  // dentro al codice asincrono sotto): se questo modulo viene chiuso
+  // (Annulla/Salva) mentre un'elaborazione è ancora in corso in background,
+  // questi riferimenti restano quelli del modulo ORMAI RIMOSSO dal DOM,
+  // anche se un modulo successivo riusa gli stessi id. Scrivere su un nodo
+  // staccato dal documento non ha alcun effetto visibile e non lancia
+  // errori: evita così che il risultato di una selezione di un modulo
+  // precedente finisca per sbaglio nell'anteprima di un modulo nuovo.
+  const esitoFoto = document.getElementById("esito-foto");
+  const anteprima = document.getElementById("anteprima-nuova-foto");
+  // Promise dell'elaborazione (ridimensionamento/compressione) in corso o
+  // già conclusa per il file ATTUALMENTE selezionato: { blob, larghezza,
+  // altezza, ridimensionata, profiloColoreEsteso }. Usare questa stessa
+  // promise sia per l'anteprima (dentro al listener "change") sia per il
+  // salvataggio (dentro al submit) garantisce che l'immagine mostrata in
+  // anteprima e quella effettivamente caricata siano SEMPRE la stessa,
+  // anche se il salvataggio parte prima che l'elaborazione sia finita.
+  // "generazioneElaborazione" protegge dal caso in cui l'amministratore
+  // selezioni una foto diversa prima che l'elaborazione della precedente sia
+  // terminata: solo l'ultima selezione può aggiornare anteprima/messaggio,
+  // indipendentemente dall'ordine in cui le elaborazioni finiscono davvero.
+  let elaborazionePromise = null;
+  let generazioneElaborazione = 0;
+  let urlAnteprimaPrecedente = null;
+
+  function elaboraEProteggi(file, miaGenerazione, { aggiornaUi }) {
+    return (async () => {
+      let risultato;
+      try {
+        risultato = await elaboraImmagine(file);
+      } catch (_) {
+        // Non dovrebbe mai succedere (elaboraImmagine gestisce già i propri
+        // errori internamente), ma in caso contrario non blocchiamo il
+        // salvataggio: si ripiega sul file originale, come se non fosse
+        // stata possibile alcuna ottimizzazione.
+        risultato = { blob: file, larghezza: null, altezza: null, ridimensionata: false, profiloColoreEsteso: false };
+      }
+      if (aggiornaUi && miaGenerazione === generazioneElaborazione) {
+        esitoFoto.innerHTML = risultato.profiloColoreEsteso
+          ? `<p class="hint">Fotografia con un profilo colore esteso (es. Display P3): caricata alla risoluzione originale, senza ridimensionamento né ricompressione, per non rischiare di alterarne i colori. Il file sarà più pesante del solito.</p>`
+          : risultato.ridimensionata
+          ? `<p class="hint">Fotografia ottimizzata per il web (${risultato.larghezza}×${risultato.altezza}px). L'opera verrà pubblicata con questa versione, senza ritagli né modifiche di colore.</p>`
+          : "";
+        if (urlAnteprimaPrecedente) URL.revokeObjectURL(urlAnteprimaPrecedente);
+        urlAnteprimaPrecedente = URL.createObjectURL(risultato.blob);
+        anteprima.src = urlAnteprimaPrecedente;
+        anteprima.classList.remove("nascosto");
+      }
+      return risultato;
+    })();
+  }
+
   campoFoto.addEventListener("change", () => {
-    const esitoFoto = document.getElementById("esito-foto");
-    const anteprima = document.getElementById("anteprima-nuova-foto");
+    const miaGenerazione = ++generazioneElaborazione;
     esitoFoto.innerHTML = "";
     anteprima.classList.add("nascosto");
+    elaborazionePromise = null;
     const file = campoFoto.files[0];
     if (!file) return;
     const erroreValidazione = validaFile(file);
@@ -501,8 +554,9 @@ function renderFormOpera(opera) {
       campoFoto.value = "";
       return;
     }
-    anteprima.src = URL.createObjectURL(file);
-    anteprima.classList.remove("nascosto");
+
+    esitoFoto.innerHTML = "Elaborazione della fotografia…";
+    elaborazionePromise = elaboraEProteggi(file, miaGenerazione, { aggiornaUi: true });
   });
 
   document.getElementById("form-opera").addEventListener("submit", async (e) => {
@@ -537,11 +591,24 @@ function renderFormOpera(opera) {
     };
 
     let nuovoImagePath = null;
+    let nuoveDimensioni = null;
     if (file) {
+      // Riusa la STESSA promise di elaborazione già avviata dalla selezione
+      // del file (anche se ancora in corso): così la foto caricata è
+      // garantita essere esattamente quella già mostrata (o in corso di
+      // elaborazione) in anteprima, mai il risultato di un calcolo separato
+      // che potrebbe finire con un file nel frattempo cambiato. Il
+      // fallback (elaborazionePromise assente) non dovrebbe verificarsi in
+      // pratica — "file" è non nullo solo se la validazione è già passata,
+      // che è anche quando "elaborazionePromise" viene impostata — ma resta
+      // per robustezza, senza toccare l'interfaccia (aggiornaUi: false) per
+      // non interferire con un'eventuale selezione successiva dell'utente.
+      const elaborazione = await (elaborazionePromise || elaboraEProteggi(file, generazioneElaborazione, { aggiornaUi: false }));
+      nuoveDimensioni = { larghezza_px: elaborazione.larghezza, altezza_px: elaborazione.altezza };
       nuovoImagePath = `${new Date().getFullYear()}/${crypto.randomUUID()}.${estensioneDa(file)}`;
       const { error: erroreUpload } = await supabaseClient.storage
         .from(BUCKET)
-        .upload(nuovoImagePath, file, { contentType: file.type, upsert: false });
+        .upload(nuovoImagePath, elaborazione.blob, { contentType: file.type, upsert: false });
       if (erroreUpload) {
         esitoForm.innerHTML = renderMessaggio("errore", "Caricamento della foto non riuscito: " + messaggioErroreSupabase(erroreUpload));
         btnSalva.disabled = false;
@@ -552,7 +619,7 @@ function renderFormOpera(opera) {
     try {
       if (inModifica) {
         const payload = { ...valori };
-        if (nuovoImagePath) payload.image_path = nuovoImagePath;
+        if (nuovoImagePath) Object.assign(payload, { image_path: nuovoImagePath }, nuoveDimensioni);
         const { error } = await supabaseClient.from("opere").update(payload).eq("id", opera.id);
         if (error) throw error;
         if (nuovoImagePath && opera.image_path) {
@@ -562,7 +629,7 @@ function renderFormOpera(opera) {
           await supabaseClient.storage.from(BUCKET).remove([opera.image_path]).catch(() => {});
         }
       } else {
-        const { error } = await supabaseClient.from("opere").insert({ ...valori, image_path: nuovoImagePath });
+        const { error } = await supabaseClient.from("opere").insert({ ...valori, image_path: nuovoImagePath, ...nuoveDimensioni });
         if (error) throw error;
       }
     } catch (error) {
