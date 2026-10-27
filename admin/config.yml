@@ -35,8 +35,8 @@ logo_url: /assets/test-opere/opera-prova-1.jpg
 media_library:
   name: cloudinary
   config:
-    cloud_name: "DA-CONFIGURARE-cloud-name"
-    api_key: "DA-CONFIGURARE-api-key"
+    cloud_name: "dxympa7bf"
+    api_key: "743655346173772"
     multiple: false
 
 collections:
