@@ -61,8 +61,8 @@ Se queste due variabili mancano, `scripts/build.js` **non fallisce**: scrive un 
 - **`public.opere`**: una riga = un'opera visibile. Non esiste uno stato "bozza/pubblicata": è la scelta di prodotto richiesta ("ogni opera salvata è automaticamente visibile"). Se in futuro servisse una bozza, si aggiunge una colonna, senza toccare le policy esistenti.
 - **`public.admins`**: whitelist amministrativa, **scrivibile solo con la service_role key**, mai dal client. Non usiamo `user_metadata` (modificabile dall'utente stesso) né il semplice ruolo `authenticated`, come esplicitamente richiesto.
 - **`is_admin()`**: l'utente è nella whitelist?
-- **`has_mfa()`**: la sessione corrente ha completato la verifica a due fattori (`aal2`)? Letto dal JWT della sessione, non da un flag "ha attivato l'MFA prima o poi".
-- **`is_verified_admin()`**: `is_admin() AND has_mfa()`. È la condizione di **ogni** policy di scrittura su `opere` e su `storage.objects`. Un amministratore che non ha ancora attivato l'MFA non può scrivere nulla, nemmeno per errore.
+- **`has_mfa()`**: la sessione corrente ha completato la verifica a due fattori (`aal2`)? Letto dal JWT della sessione. **Non più usata da `is_verified_admin()`** (vedi sotto): resta definita ma inutilizzata per l'autorizzazione, nel caso si voglia reintrodurre l'obbligo MFA in futuro.
+- **`is_verified_admin()`**: dalla migrazione `0005_rimuovi_obbligo_mfa.sql`, richiede **esclusivamente** `is_admin()` — l'obbligo di MFA è stato rimosso su richiesta esplicita. È comunque la condizione di **ogni** policy di scrittura su `opere` e su `storage.objects`: un utente autenticato ma non nella whitelist `admins` continua a non poter scrivere nulla.
 - **`mio_stato_admin()`**: espone solo lo stato dell'utente che chiama (mai il contenuto di `admins`), per mostrare messaggi corretti nel pannello invece di un errore generico del database.
 
 ### Creare un amministratore
@@ -74,7 +74,7 @@ insert into public.admins (user_id, email)
 select id, email from auth.users where email = 'indirizzo@esempio.ch';
 ```
 
-Poi l'utente deve attivare l'MFA al primo accesso al pannello (il pannello lo richiede automaticamente, vedi `pannello/app.js`, `renderAttivazioneMfa`).
+L'MFA **non è più richiesta**: dopo il login l'utente accede direttamente alla dashboard (vedi `admin/app.js`).
 
 ## 5. Test eseguiti per davvero in questo ambiente
 

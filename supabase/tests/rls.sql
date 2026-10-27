@@ -44,7 +44,8 @@ begin
   reset role;
   if not ha_sollevato_errore then raise exception 'TEST 2 fallito: anon ha potuto inserire un''opera'; end if;
 
-  -- TEST 3: authenticated senza whitelist e senza MFA non può inserire --
+  -- TEST 3: authenticated senza whitelist non può inserire, indipendentemente
+  -- dall'MFA (qui con sessione aal1: la whitelist resta l'unico filtro) -----
   set role authenticated;
   perform set_config('request.jwt.claims', json_build_object('sub', estraneo_id, 'aal', 'aal1')::text, false);
   ha_sollevato_errore := false;
@@ -56,9 +57,11 @@ begin
   reset role;
   if not ha_sollevato_errore then raise exception 'TEST 3 fallito: un utente non admin ha potuto inserire un''opera'; end if;
 
-  -- TEST 4: admin in whitelist ma senza MFA (aal1) non può inserire -----
+  -- TEST 3b: stesso utente non admin, stavolta con sessione aal2 (MFA
+  -- completata): continua a non poter inserire. La whitelist, non l'MFA, è
+  -- ciò che conta --------------------------------------------------------
   set role authenticated;
-  perform set_config('request.jwt.claims', json_build_object('sub', danilo_id, 'aal', 'aal1')::text, false);
+  perform set_config('request.jwt.claims', json_build_object('sub', estraneo_id, 'aal', 'aal2')::text, false);
   ha_sollevato_errore := false;
   begin
     insert into public.opere (titolo, image_path) values ('x', 'x.jpg');
@@ -66,16 +69,41 @@ begin
     ha_sollevato_errore := true;
   end;
   reset role;
-  if not ha_sollevato_errore then raise exception 'TEST 4 fallito: un admin SENZA sessione MFA (aal1) ha potuto inserire'; end if;
+  if not ha_sollevato_errore then raise exception 'TEST 3b fallito: un utente non admin con MFA ha potuto inserire'; end if;
 
-  -- TEST 5: admin in whitelist CON MFA (aal2) può inserire --------------
+  -- TEST 4: admin in whitelist SENZA sessione MFA (aal1) PUÒ inserire ---
+  -- (comportamento cambiato di proposito: l'MFA non è più obbligatoria,
+  -- vedi 0005_rimuovi_obbligo_mfa.sql) ------------------------------------
+  set role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub', danilo_id, 'aal', 'aal1')::text, false);
+  insert into public.opere (titolo, image_path) values ('Prova senza MFA', 'opere/senza-mfa.jpg')
+    returning id into nuovo_id;
+  reset role;
+  if nuovo_id is null then raise exception 'TEST 4 fallito: un admin senza MFA non ha potuto inserire (l''MFA dovrebbe essere facoltativa)'; end if;
+  delete from public.opere where id = nuovo_id;
+  nuovo_id := null;
+
+  -- TEST 4b: admin con un JWT che non contiene affatto il claim "aal"
+  -- (nessuna informazione MFA) PUÒ comunque inserire: is_verified_admin()
+  -- non deve mai richiedere che il claim esista --------------------------
+  set role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub', danilo_id)::text, false);
+  insert into public.opere (titolo, image_path) values ('Prova senza claim aal', 'opere/senza-aal.jpg')
+    returning id into nuovo_id;
+  reset role;
+  if nuovo_id is null then raise exception 'TEST 4b fallito: un admin senza claim "aal" non ha potuto inserire'; end if;
+  delete from public.opere where id = nuovo_id;
+  nuovo_id := null;
+
+  -- TEST 5: admin in whitelist CON MFA (aal2) può ANCORA inserire (nessuna
+  -- regressione per chi la MFA continua ad averla attiva) ----------------
   set role authenticated;
   perform set_config('request.jwt.claims', json_build_object('sub', danilo_id, 'aal', 'aal2')::text, false);
   insert into public.opere (titolo, image_path, ordine)
     values ('Opera vera', 'opere/vera.jpg', 1)
     returning id into nuovo_id;
   reset role;
-  if nuovo_id is null then raise exception 'TEST 5 fallito: un admin CON sessione MFA non ha potuto inserire'; end if;
+  if nuovo_id is null then raise exception 'TEST 5 fallito: un admin con sessione MFA non ha potuto inserire'; end if;
 
   -- TEST 6: anon ora vede la riga appena inserita -----------------------
   set role anon;
@@ -94,7 +122,8 @@ begin
     raise exception 'TEST 7 fallito: l''admin con MFA non ha potuto aggiornare l''opera';
   end if;
 
-  -- TEST 8: utente autenticato con MFA ma NON admin non può eliminare ----
+  -- TEST 8: utente autenticato (anche con MFA) ma NON admin non può
+  -- eliminare: solo la whitelist admins conta --------------------------
   set role authenticated;
   perform set_config('request.jwt.claims', json_build_object('sub', estraneo_id, 'aal', 'aal2')::text, false);
   delete from public.opere where id = nuovo_id;
@@ -165,6 +194,6 @@ begin
   end if;
   reset role;
 
-  raise notice '=== TUTTI I 14 TEST RLS SUPERATI ===';
+  raise notice '=== TUTTI I 16 TEST RLS SUPERATI ===';
 end
 $$;

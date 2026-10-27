@@ -3,7 +3,12 @@
 /**
  * Pannello amministrativo proprietario — Supabase Auth + Postgres + Storage.
  *
- * Le chiamate all'SDK Supabase JS v2 (supabaseClient.auth.mfa.*, supabaseClient.storage.*,
+ * L'obbligo di verifica in due passaggi (MFA/TOTP) è stato rimosso su
+ * richiesta esplicita: dopo il login con email/password si accede
+ * direttamente alla dashboard, senza alcuna chiamata a supabaseClient.auth.mfa.*.
+ * Vedi supabase/migrations/0005_rimuovi_obbligo_mfa.sql.
+ *
+ * Le chiamate all'SDK Supabase JS v2 (supabaseClient.storage.*,
  * supabaseClient.from(...)) sono scritte secondo l'API documentata v2 così come la
  * conosco, ma NON è stato possibile eseguirle contro un vero progetto
  * Supabase in questo ambiente (nessun accesso a Internet nel sandbox di
@@ -13,7 +18,9 @@
  * La sicurezza vera non dipende da questo file: ogni scrittura è comunque
  * filtrata dalle policy RLS lato database (supabase/migrations/), che SONO
  * state testate con query reali (vedi supabase/tests/). Questo codice esiste
- * per l'esperienza d'uso, non per l'autorizzazione.
+ * per l'esperienza d'uso, non per l'autorizzazione. L'autorizzazione resta:
+ * utente presente nella whitelist public.admins (is_admin()). Un utente
+ * semplicemente autenticato ma non in whitelist non può scrivere nulla.
  */
 
 const BUCKET = "opere";
@@ -77,12 +84,11 @@ function messaggioErroreSupabase(error) {
 }
 
 // I link di invito e recupero password aprono una sessione temporanea.
-// Non mandiamo l'utente direttamente al pannello MFA prima che abbia scelto
+// Non mandiamo l'utente direttamente alla dashboard prima che abbia scelto
 // una password personale. Il flag viene catturato prima che l'SDK pulisca l'URL.
 let cambioPasswordRichiesto = /(?:^|[&#])type=(?:invite|recovery)(?:&|$)/.test(window.location.hash)
   || new URLSearchParams(window.location.search).get("type") === "recovery";
 let cambioPasswordInCorso = false;
-let attivazioneMfaInCorso = false;
 
 function renderNuovaPassword(messaggio) {
   app.innerHTML = `
@@ -117,7 +123,7 @@ function renderNuovaPassword(messaggio) {
     cambioPasswordRichiesto = false;
     // Il link non deve rimanere nella cronologia dopo l'attivazione.
     window.history.replaceState(null, "", "/admin/");
-    await instradaDopoLogin();
+    await avvia();
   });
 }
 
@@ -136,7 +142,13 @@ async function avvia() {
     renderLogin();
     return;
   }
-  await instradaDopoLogin();
+  if (cambioPasswordRichiesto) {
+    renderNuovaPassword();
+    return;
+  }
+  // Nessuna verifica MFA: chi ha una sessione valida ed è nella whitelist
+  // public.admins può gestire le opere. Vedi nota in testa al file.
+  renderDashboard();
 }
 
 supabaseClient.auth.onAuthStateChange((evento, _sessione) => {
@@ -183,7 +195,7 @@ function renderLogin(messaggio) {
       renderLogin({ tipo: "errore", testo: "Accesso non riuscito: email o password non corrette." });
       return;
     }
-    // onAuthStateChange si occupa del resto (MFA, dashboard).
+    // onAuthStateChange si occupa del resto (dashboard o impostazione password).
   });
 
   document.getElementById("link-recupero").addEventListener("click", async (e) => {
@@ -201,142 +213,6 @@ function renderLogin(messaggio) {
         ? { tipo: "errore", testo: messaggioErroreSupabase(error) }
         : { tipo: "successo", testo: "Se l'indirizzo è registrato, riceverai a breve un'email per reimpostare la password." }
     );
-  });
-}
-
-// ---------------------------------------------------------------------
-// Instradamento dopo il login: serve attivare/verificare l'MFA?
-// ---------------------------------------------------------------------
-
-async function instradaDopoLogin() {
-  app.innerHTML = "Verifica dell'autenticazione a due fattori…";
-
-  const { data: aal, error: erroreAal } = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (erroreAal) {
-    app.innerHTML = renderMessaggio("errore", messaggioErroreSupabase(erroreAal));
-    return;
-  }
-
-  if (aal.currentLevel === "aal2") {
-    renderDashboard();
-    return;
-  }
-
-  const { data: fattori, error: erroreFattori } = await supabaseClient.auth.mfa.listFactors();
-  if (erroreFattori) {
-    app.innerHTML = renderMessaggio("errore", messaggioErroreSupabase(erroreFattori));
-    return;
-  }
-
-  const fattoreTotp = (fattori.totp || [])[0];
-  if (fattoreTotp) {
-    renderSfidaMfa(fattoreTotp.id);
-  } else {
-    renderAttivazioneMfa();
-  }
-}
-
-// ---------------------------------------------------------------------
-// MFA — attivazione (nessun fattore registrato: obbligatoria)
-// ---------------------------------------------------------------------
-
-async function renderAttivazioneMfa() {
-  if (attivazioneMfaInCorso) return;
-  attivazioneMfaInCorso = true;
-  app.innerHTML = `
-    <h1>Attiva la verifica in due passaggi</h1>
-    <div class="card">
-      <p>
-        Per gestire le opere è obbligatorio attivare la verifica in due
-        passaggi (TOTP), con un'app come Google Authenticator o Authy.
-        Questo passaggio va fatto una sola volta.
-      </p>
-      <div id="riquadro-enroll">Generazione del codice QR…</div>
-    </div>
-  `;
-
-  const { data, error } = await supabaseClient.auth.mfa.enroll({ factorType: "totp" });
-  const riquadro = document.getElementById("riquadro-enroll");
-
-  if (error) {
-    attivazioneMfaInCorso = false;
-    riquadro.innerHTML = renderMessaggio("errore", messaggioErroreSupabase(error));
-    return;
-  }
-
-  const factorId = data.id;
-  riquadro.innerHTML = `
-    <p>1. Inquadra questo codice con la tua app di autenticazione:</p>
-    <img src="${data.totp.qr_code}" alt="Codice QR per l'attivazione" style="max-width:200px;">
-    <p class="hint">Non riesci a inquadrarlo? Inserisci questo codice a mano: <code>${escapeHtml(data.totp.secret)}</code></p>
-    <form id="form-verifica-enroll">
-      <label for="codice-enroll">2. Inserisci il codice a 6 cifre mostrato dall'app</label>
-      <input type="text" id="codice-enroll" inputmode="numeric" pattern="[0-9]*" maxlength="6" required autocomplete="one-time-code">
-      <p style="margin-top:16px;"><button type="submit">Conferma e attiva</button></p>
-      <div id="esito-enroll"></div>
-    </form>
-  `;
-
-  document.getElementById("form-verifica-enroll").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const codice = document.getElementById("codice-enroll").value.trim();
-    const esito = document.getElementById("esito-enroll");
-    const { data: sfida, error: erroreSfida } = await supabaseClient.auth.mfa.challenge({ factorId });
-    if (erroreSfida) {
-      esito.innerHTML = renderMessaggio("errore", messaggioErroreSupabase(erroreSfida));
-      return;
-    }
-    const { error: erroreVerifica } = await supabaseClient.auth.mfa.verify({
-      factorId, challengeId: sfida.id, code: codice,
-    });
-    if (erroreVerifica) {
-      esito.innerHTML = renderMessaggio("errore", "Codice non corretto. Riprova.");
-      return;
-    }
-    attivazioneMfaInCorso = false;
-    avvia();
-  });
-}
-
-// ---------------------------------------------------------------------
-// MFA — sfida (fattore già registrato, sessione ancora aal1)
-// ---------------------------------------------------------------------
-
-function renderSfidaMfa(factorId) {
-  app.innerHTML = `
-    <h1>Verifica in due passaggi</h1>
-    <div class="card">
-      <form id="form-sfida-mfa">
-        <label for="codice-sfida">Inserisci il codice a 6 cifre dalla tua app di autenticazione</label>
-        <input type="text" id="codice-sfida" inputmode="numeric" pattern="[0-9]*" maxlength="6" required autocomplete="one-time-code">
-        <p style="margin-top:16px;"><button type="submit">Conferma</button></p>
-        <div id="esito-sfida"></div>
-      </form>
-      <p><button type="button" class="secondario" id="annulla-sfida">Esci</button></p>
-    </div>
-  `;
-
-  document.getElementById("annulla-sfida").addEventListener("click", async () => {
-    await supabaseClient.auth.signOut();
-  });
-
-  document.getElementById("form-sfida-mfa").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const codice = document.getElementById("codice-sfida").value.trim();
-    const esito = document.getElementById("esito-sfida");
-    const { data: sfida, error: erroreSfida } = await supabaseClient.auth.mfa.challenge({ factorId });
-    if (erroreSfida) {
-      esito.innerHTML = renderMessaggio("errore", messaggioErroreSupabase(erroreSfida));
-      return;
-    }
-    const { error: erroreVerifica } = await supabaseClient.auth.mfa.verify({
-      factorId, challengeId: sfida.id, code: codice,
-    });
-    if (erroreVerifica) {
-      esito.innerHTML = renderMessaggio("errore", "Codice non corretto. Riprova.");
-      return;
-    }
-    avvia();
   });
 }
 

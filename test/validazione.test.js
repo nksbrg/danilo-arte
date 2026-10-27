@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { escapeHtml, validaFile, estensioneDa, MAX_BYTES } = require("../pannello/validazione.js");
+const { escapeHtml, validaFile, estensioneDa, MAX_BYTES } = require("../admin/validazione.js");
 
 function fileFinto({ name = "foto.jpg", type = "image/jpeg", size = 1024 }) {
   return { name, type, size };
