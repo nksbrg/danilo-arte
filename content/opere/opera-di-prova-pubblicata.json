@@ -1,0 +1,10 @@
+{
+  "titolo": "Opera di prova — pubblicata",
+  "immagine": "/assets/test-opere/opera-prova-1.jpg",
+  "tecnica": "Dato fittizio: acrilico su tela (test)",
+  "dimensioni": "80 × 60 cm (dato fittizio)",
+  "anno": 2026,
+  "descrizione": "Questa è un'opera di TEST creata per collaudare il prototipo CMS. Dati interamente fittizi: non rappresenta un'opera reale di Danilo Bergaglio. Stato: pubblicata, quindi deve comparire nel catalogo generato e nella galleria del sito.",
+  "ordine": 1,
+  "stato": "pubblicata"
+}

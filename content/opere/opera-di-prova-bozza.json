@@ -1,0 +1,10 @@
+{
+  "titolo": "Opera di prova — bozza",
+  "immagine": "/assets/test-opere/opera-prova-2.jpg",
+  "tecnica": "Dato fittizio: olio su tavola (test)",
+  "dimensioni": "50 × 50 cm (dato fittizio)",
+  "anno": 2026,
+  "descrizione": "Opera di TEST salvata come bozza. Dati interamente fittizi. Stato: bozza, quindi NON deve comparire nel catalogo generato né nella galleria del sito pubblico.",
+  "ordine": 2,
+  "stato": "bozza"
+}

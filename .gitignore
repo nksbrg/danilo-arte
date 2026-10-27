@@ -1,0 +1,4 @@
+# Catalogo pubblico generato da scripts/build-opere.js a partire da
+# content/opere/*.json. Non va versionato: lo ricrea ogni build di Netlify
+# (e si rigenera in locale con: node scripts/build-opere.js).
+/data/opere.json
