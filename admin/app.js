@@ -76,6 +76,50 @@ function messaggioErroreSupabase(error) {
   return error.message || "Si è verificato un errore. Riprova.";
 }
 
+// I link di invito e recupero password aprono una sessione temporanea.
+// Non mandiamo l'utente direttamente al pannello MFA prima che abbia scelto
+// una password personale. Il flag viene catturato prima che l'SDK pulisca l'URL.
+let cambioPasswordRichiesto = /(?:^|[&#])type=(?:invite|recovery)(?:&|$)/.test(window.location.hash)
+  || new URLSearchParams(window.location.search).get("type") === "recovery";
+let cambioPasswordInCorso = false;
+
+function renderNuovaPassword(messaggio) {
+  app.innerHTML = `
+    <h1>Imposta la tua password</h1>
+    <div class="card">
+      <p>Scegli una password per accedere alla gestione delle opere.</p>
+      ${messaggio ? renderMessaggio(messaggio.tipo, messaggio.testo) : ""}
+      <form id="form-nuova-password">
+        <label for="nuova-password">Nuova password (almeno 12 caratteri)</label>
+        <input type="password" id="nuova-password" minlength="12" required autocomplete="new-password">
+        <label for="conferma-password">Conferma password</label>
+        <input type="password" id="conferma-password" minlength="12" required autocomplete="new-password">
+        <p style="margin-top:16px;"><button type="submit">Salva password</button></p>
+      </form>
+    </div>`;
+  document.getElementById("form-nuova-password").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (cambioPasswordInCorso) return;
+    const password = document.getElementById("nuova-password").value;
+    const conferma = document.getElementById("conferma-password").value;
+    if (password !== conferma) {
+      renderNuovaPassword({ tipo: "errore", testo: "Le password non coincidono." });
+      return;
+    }
+    cambioPasswordInCorso = true;
+    const { error } = await supabase.auth.updateUser({ password });
+    cambioPasswordInCorso = false;
+    if (error) {
+      renderNuovaPassword({ tipo: "errore", testo: messaggioErroreSupabase(error) });
+      return;
+    }
+    cambioPasswordRichiesto = false;
+    // Il link non deve rimanere nella cronologia dopo l'attivazione.
+    window.history.replaceState(null, "", "/admin/");
+    await instradaDopoLogin();
+  });
+}
+
 // ---------------------------------------------------------------------
 // Avvio: capiamo lo stato di autenticazione corrente
 // ---------------------------------------------------------------------
@@ -94,7 +138,7 @@ async function avvia() {
   await instradaDopoLogin();
 }
 
-supabase.auth.onAuthStateChange((_evento, _sessione) => {
+supabase.auth.onAuthStateChange((evento, _sessione) => {\n  if (evento === "PASSWORD_RECOVERY") cambioPasswordRichiesto = true;
   // Ad ogni cambio di sessione (login, logout, refresh) ricalcoliamo la
   // schermata corretta da zero, invece di tentare aggiornamenti parziali.
   avvia();
