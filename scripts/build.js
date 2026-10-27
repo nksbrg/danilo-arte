@@ -17,13 +17,20 @@
  *   dist/index.html
  *   dist/thanks.html
  *   dist/assets/...            (immagini statiche del sito)
- *   dist/admin/index.html      (pannello Decap CMS)
+ *   dist/admin/index.html      (pannello Decap CMS, ancora attivo)
  *   dist/admin/config.yml      (nessun segreto: vedi admin/config.yml)
- *   dist/data/opere.json       (generato qui, solo opere "pubblicata")
+ *   dist/pannello/...          (nuovo pannello Supabase, parallelo a /admin)
+ *   dist/supabase-config.js    (generato qui da variabili d'ambiente,
+ *                               nessun segreto: solo URL e publishable key,
+ *                               pensati da Supabase per stare nel browser)
+ *   dist/data/opere.json       (generato qui, solo opere "pubblicata";
+ *                               rete di sicurezza/rollback se Supabase non
+ *                               è configurato o non risponde)
  *
  * Cosa NON finisce mai in dist/ (quindi non è raggiungibile dal dominio
  * pubblico): content/opere/*.json (inclusi bozza e nascosta), scripts/,
- * test/, README-CMS.md, COME-AGGIORNARE.txt, netlify.toml, .git.
+ * test/, supabase/ (migrazioni SQL), README-CMS.md, README-SUPABASE.md,
+ * COME-AGGIORNARE.txt, netlify.toml, .git.
  */
 
 const fs = require("fs");
@@ -38,7 +45,7 @@ const STATI_VALIDI = new Set(["bozza", "pubblicata", "nascosta", "archiviata"]);
 // File e cartelle pubblicati così come sono, copiati dentro dist/ con lo
 // stesso percorso relativo. Qualunque cosa non elencata qui resta fuori da
 // dist/ e quindi fuori dal dominio pubblico.
-const FILE_PUBBLICI = ["index.html", "thanks.html", "assets", "admin"];
+const FILE_PUBBLICI = ["index.html", "thanks.html", "assets", "admin", "pannello"];
 
 /**
  * Legge e valida content/opere/*.json. Lancia un errore (non termina il
@@ -137,6 +144,34 @@ function costruisciCatalogoPubblico(opere) {
     }));
 }
 
+/**
+ * Genera il contenuto di supabase-config.js a partire dalle variabili
+ * d'ambiente. SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY non sono segreti (per
+ * progettazione di Supabase: la vera protezione dei dati sono le policy RLS,
+ * non la segretezza di questi due valori) e possono stare in un file servito
+ * pubblicamente. Se mancano, il sito e il pannello restano funzionanti: il
+ * frontend ripiega sul catalogo statico, il pannello mostra un messaggio
+ * esplicito invece di un errore JavaScript. Il build NON fallisce per
+ * variabili d'ambiente mancanti: evita di bloccare tutto il lavoro prima che
+ * esistano credenziali reali.
+ */
+function contenutoConfigSupabase(env = process.env) {
+  const url = env.SUPABASE_URL || "";
+  const chiave = env.SUPABASE_PUBLISHABLE_KEY || "";
+  if (!url || !chiave) {
+    console.warn(
+      "[build] ATTENZIONE: SUPABASE_URL e/o SUPABASE_PUBLISHABLE_KEY non impostate. " +
+        "Il sito userà il catalogo statico e il pannello Supabase mostrerà un messaggio di configurazione mancante."
+    );
+  }
+  return (
+    `// Generato da scripts/build.js a partire dalle variabili d'ambiente Netlify.\n` +
+    `// Non contiene segreti: vedi README-SUPABASE.md.\n` +
+    `window.SUPABASE_URL = ${JSON.stringify(url)};\n` +
+    `window.SUPABASE_PUBLISHABLE_KEY = ${JSON.stringify(chiave)};\n`
+  );
+}
+
 function copiaFilePubblici(rootDir, distDir) {
   fs.rmSync(distDir, { recursive: true, force: true });
   fs.mkdirSync(distDir, { recursive: true });
@@ -167,6 +202,12 @@ function main() {
     "utf8"
   );
 
+  fs.writeFileSync(
+    path.join(DIST_DIR, "supabase-config.js"),
+    contenutoConfigSupabase(),
+    "utf8"
+  );
+
   console.log(`[build] Opere totali in content/opere/: ${tutteLeOpere.length}`);
   console.log(
     `[build]   di cui pubblicata=${perStato.pubblicata} bozza=${perStato.bozza} ` +
@@ -185,4 +226,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { leggiOpere, costruisciCatalogoPubblico, STATI_VALIDI };
+module.exports = { leggiOpere, costruisciCatalogoPubblico, STATI_VALIDI, contenutoConfigSupabase };

@@ -6,7 +6,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const { leggiOpere, costruisciCatalogoPubblico } = require("../scripts/build.js");
+const { leggiOpere, costruisciCatalogoPubblico, contenutoConfigSupabase } = require("../scripts/build.js");
 
 function creaCartellaFixture(file) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "opere-test-"));
@@ -113,4 +113,35 @@ test("lancia un errore leggibile se 'stato' non è un valore ammesso", () => {
 test("cartella content/opere assente produce un catalogo vuoto, non un errore", () => {
   const dirInesistente = path.join(os.tmpdir(), "non-esiste-" + Date.now());
   assert.deepEqual(leggiOpere(dirInesistente), []);
+});
+
+test("contenutoConfigSupabase incorpora URL e chiave quando presenti nell'ambiente", () => {
+  const js = contenutoConfigSupabase({
+    SUPABASE_URL: "https://esempio.supabase.co",
+    SUPABASE_PUBLISHABLE_KEY: "chiave-di-prova",
+  });
+  assert.match(js, /window\.SUPABASE_URL = "https:\/\/esempio\.supabase\.co";/);
+  assert.match(js, /window\.SUPABASE_PUBLISHABLE_KEY = "chiave-di-prova";/);
+});
+
+test("contenutoConfigSupabase produce stringhe vuote (non un errore) se le variabili mancano", () => {
+  const js = contenutoConfigSupabase({});
+  assert.match(js, /window\.SUPABASE_URL = "";/);
+  assert.match(js, /window\.SUPABASE_PUBLISHABLE_KEY = "";/);
+});
+
+test("contenutoConfigSupabase non è vulnerabile a injection tramite valori con virgolette", () => {
+  const valoreOstile = 'https://x.co";window.rubato=true;//';
+  const js = contenutoConfigSupabase({
+    SUPABASE_URL: valoreOstile,
+    SUPABASE_PUBLISHABLE_KEY: "chiave",
+  });
+  // La virgoletta nel valore deve restare racchiusa (ed escapata) dentro la
+  // stringa assegnata, non "rompere" fuori per diventare codice eseguibile:
+  // eseguendo la riga generata si deve ottenere lo stesso valore originale.
+  const riga = js.split("\n").find((r) => r.startsWith("window.SUPABASE_URL"));
+  const window_ = {};
+  // eslint-disable-next-line no-new-func
+  new Function("window", riga)(window_);
+  assert.equal(window_.SUPABASE_URL, valoreOstile);
 });
