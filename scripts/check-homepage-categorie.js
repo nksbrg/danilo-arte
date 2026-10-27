@@ -361,6 +361,87 @@ async function main() {
       }
     }
 
+    // --- Fedeltà del rapporto d'aspetto: nessuna foto deformata/ritagliata
+    // dalla galleria, qualunque sia la sua proporzione reale ---------------
+    // Regressione distinta dalle due precedenti (colonne vuote, tassello
+    // "a tutta pagina"): con `larghezza_px`/`altezza_px` dichiarate (come le
+    // opere reali, migrazione 0007), impostare `img.height = altezzaPx`
+    // imposta un'altezza CSS in PIXEL LETTERALI (mappatura di default
+    // dell'attributo HTML `height`), non un rapporto d'aspetto — e quella
+    // regola sopravvive perché solo "width" viene sovrascritta da
+    // `.gallery-item img`. Il risultato: un tassello alto quanto l'opera
+    // originale (spesso migliaia di px) ma stretto quanto la colonna del
+    // mosaico (poche centinaia di px), con `object-fit:cover` che ritaglia
+    // brutalmente l'opera per riempire quel riquadro sproporzionato —
+    // "fotografie eccessivamente alte e strette, come strisce verticali",
+    // riportato sul sito pubblicato nonostante le correzioni precedenti
+    // (che toccavano solo `.gallery`/`.gallery-item`, mai `img`).
+    // Qui si verifica, per OGNI opera e con proporzioni reali deliberatamente
+    // diverse fra loro (verticale, quadrata, panoramica, orizzontale) che
+    // naturalWidth/naturalHeight (le dimensioni intrinseche reali decodificate
+    // dal browser) e getBoundingClientRect() (il riquadro realmente
+    // renderizzato) abbiano lo STESSO rapporto, entro una tolleranza minima:
+    // se non coincidono, la foto è ritagliata o deformata.
+    {
+      const catalogoProporzioniVarie = [
+        { titolo: "Verticale", categoria: "ricami", ordine: 1, image_path: "opera-prova-4.jpg", larghezza_px: 900, altezza_px: 1350, tecnica: "t", dimensioni: "d", anno: 2024, descrizione: "" },
+        { titolo: "Quadrata", categoria: "fuori_di_tela", ordine: 1, image_path: "opera-prova-6.jpg", larghezza_px: 1000, altezza_px: 1000, tecnica: "t", dimensioni: "d", anno: 2024, descrizione: "" },
+        { titolo: "Panoramica", categoria: "fuori_di_tela", ordine: 2, image_path: "opera-prova-5.jpg", larghezza_px: 1600, altezza_px: 600, tecnica: "t", dimensioni: "d", anno: 2024, descrizione: "" },
+        { titolo: "Orizzontale", categoria: "paciughi", ordine: 1, image_path: "opera-prova-1.jpg", larghezza_px: 1200, altezza_px: 900, tecnica: "t", dimensioni: "d", anno: 2024, descrizione: "" },
+        // Senza larghezza_px/altezza_px (opera caricata prima della PR #4):
+        // deve comunque rispettare le proporzioni reali del file.
+        { titolo: "SenzaAttributi", categoria: "paciughi", ordine: 2, image_path: "opera-prova-3.jpg", tecnica: "t", dimensioni: "d", anno: 2024, descrizione: "" },
+      ];
+      const server = avviaServer(catalogoProporzioniVarie);
+      await new Promise((resolve) => server.listen(PORT, resolve));
+      try {
+        for (const vp of [{ nome: "desktop", width: 1280, height: 900 }, { nome: "mobile", width: 390, height: 844 }]) {
+          const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
+          await page.goto(`http://localhost:${PORT}/index.html`, { waitUntil: "networkidle" });
+          await page.waitForTimeout(400);
+
+          const misure = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll(".gallery-item img")).map((img) => {
+              const r = img.getBoundingClientRect();
+              return {
+                titolo: img.alt,
+                naturalWidth: img.naturalWidth,
+                naturalHeight: img.naturalHeight,
+                renderedWidth: r.width,
+                renderedHeight: r.height,
+              };
+            });
+          });
+
+          controlla(`${vp.nome}: tutte le ${catalogoProporzioniVarie.length} opere sono state misurate`, misure.length === catalogoProporzioniVarie.length);
+
+          for (const m of misure) {
+            const rapportoNaturale = m.naturalWidth / m.naturalHeight;
+            const rapportoRenderizzato = m.renderedWidth / m.renderedHeight;
+            const scarto = Math.abs(rapportoNaturale - rapportoRenderizzato) / rapportoNaturale;
+            controlla(
+              `${vp.nome}, "${m.titolo}": il rapporto d'aspetto renderizzato (${rapportoRenderizzato.toFixed(3)}) coincide con quello intrinseco naturalWidth/naturalHeight (${rapportoNaturale.toFixed(3)}), nessun ritaglio/deformazione`,
+              scarto < 0.02
+            );
+          }
+
+          // Proporzioni diverse devono convivere naturalmente: non deve
+          // esistere un'altezza di tassello unica forzata per tutti (prova
+          // indiretta che non c'è più un min-height che le uniforma).
+          const altezze = misure.map((m) => m.renderedHeight);
+          controlla(`${vp.nome}: le opere di proporzioni diverse hanno altezze di tassello DIVERSE fra loro (mosaico vero, non uniformato da un'altezza minima forzata)`, Math.max(...altezze) - Math.min(...altezze) > 20);
+
+          const screenshotDir = process.env.SCREENSHOT_DIR;
+          if (screenshotDir) {
+            await page.screenshot({ path: path.join(screenshotDir, `aspect-ratio-${vp.nome}.png`), fullPage: true });
+          }
+          await page.close();
+        }
+      } finally {
+        server.close();
+      }
+    }
+
     // --- Responsive mobile: nessun overflow, nessun errore ---------------
     {
       const catalogo = opereFinte({ conNonClassificate: true });
