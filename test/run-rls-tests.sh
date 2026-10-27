@@ -53,10 +53,13 @@ for f in "${REPO_ROOT}"/supabase/migrations/*.sql; do
   run_sql "$f" >/dev/null
 done
 
-echo "[run-rls-tests] Eseguo le asserzioni..."
+echo "[run-rls-tests] Eseguo le asserzioni RLS..."
 run_sql "${REPO_ROOT}/supabase/tests/rls.sql"
+
+echo "[run-rls-tests] Eseguo le asserzioni di hardening (search_path, rls_auto_enable)..."
+run_sql "${REPO_ROOT}/supabase/tests/hardening.sql"
 
 echo "[run-rls-tests] Pulizia..."
 psql_super -c "drop database if exists ${DB_NAME}" >/dev/null
 
-echo "[run-rls-tests] OK: tutti i test RLS superati."
+echo "[run-rls-tests] OK: tutti i test RLS e di hardening superati."

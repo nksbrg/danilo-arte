@@ -96,6 +96,18 @@ details.avanzate summary { cursor: pointer; font-weight: 600; }
 
 .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 
+/* Classi che sostituiscono stili inline nel markup generato da app.js, per
+   poter togliere 'unsafe-inline' da style-src nella CSP di /admin/* (vedi
+   netlify.toml). Nessuna di queste cambia l'aspetto rispetto a prima. */
+.azioni-form { margin-top: 16px; }
+.card-stretta { max-width: 400px; }
+.nascosto { display: none; }
+.overlay-conferma {
+  position: fixed; inset: 0; max-width: none; margin: 0;
+  background: rgba(0, 0, 0, .5);
+  display: flex; align-items: center; justify-content: center; z-index: 10;
+}
+
 @media (max-width: 480px) {
   #app { padding: 12px; }
   .opera-riga { flex-wrap: wrap; }
