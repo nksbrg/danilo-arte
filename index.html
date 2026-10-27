@@ -434,35 +434,17 @@
     });
   }
 
-  // Carica il catalogo opere: prova prima il catalogo statico generato dal
-  // nuovo CMS (prototipo, vedi /admin), poi ripiega su Notion via Netlify
-  // Function (percorso attuale di produzione, invariato).
-  async function recuperaCatalogoStatico() {
-    try {
-      const res = await fetch('/data/opere.json', { cache: 'no-store' });
-      if (!res.ok) return null;
-      const dati = await res.json();
-      return Array.isArray(dati) ? dati : null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  async function recuperaCatalogoNotion() {
-    const res = await fetch('/.netlify/functions/notion');
-    if (!res.ok) throw new Error('Errore dal server');
-    const dati = await res.json();
-    if (!Array.isArray(dati)) {
-      const msg = (dati && dati.error) ? dati.error : 'Risposta non valida';
-      throw new Error(msg);
-    }
-    return dati;
-  }
-
+  // Carica il catalogo opere generato a build time dal CMS
+  // (content/opere/*.json → scripts/build.js → data/opere.json).
+  // Nessuna chiamata a servizi esterni: se il catalogo manca o è vuoto,
+  // la galleria mostra semplicemente un messaggio.
   async function caricaOpere() {
     const gallery = document.getElementById('gallery');
     try {
-      const opere = (await recuperaCatalogoStatico()) || (await recuperaCatalogoNotion());
+      const res = await fetch('/data/opere.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error('Catalogo non disponibile');
+      const opere = await res.json();
+      if (!Array.isArray(opere)) throw new Error('Formato del catalogo non valido');
 
       if (!opere.length) {
         gallery.innerHTML = '<p class="gallery-loading">Nessuna opera pubblicata ancora.</p>';

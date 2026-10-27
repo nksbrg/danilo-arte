@@ -1,165 +1,194 @@
-# Prototipo CMS — ILO | Fuori di Tela (Fase 3)
+# CMS del sito — ILO | Fuori di Tela (Fase 3B)
 
-Stato: **prototipo nel branch `claude/clever-darwin-ay3nu6`, non attivo, non collegato a nulla di reale.**
-Il branch `main` e il sito pubblico non sono stati toccati. Notion e la relativa
-Netlify Function restano l'unica fonte dati realmente funzionante finché
-qualcuno non completa i passaggi manuali più sotto.
+Stato: **prototipo nel branch `claude/clever-darwin-ay3nu6`, non ancora attivo
+sui servizi reali.** Il branch `main` non è stato toccato. Nessun deploy
+definitivo è stato effettuato.
 
-## 1. Architettura implementata
+Rispetto alla Fase 3: **Notion è stato rimosso completamente dal progetto.**
+Il sito non è ancora online e non c'è nulla da migrare: le opere vere si
+caricano solo tramite il nuovo CMS, da zero.
+
+## 1. Architettura definitiva
 
 ```text
-/admin (Decap CMS, in locale non testabile: serve Internet + account reali)
+/admin (Decap CMS)
    │
    ├── autenticazione → Decap Turbo (email+password, nessun account GitHub
    │                      richiesto per Danilo — vedi §4)
-   ├── foto → Cloudinary Media Library (upload dal CMS, non copia-incolla URL)
-   └── scrive → content/opere/<slug>.json   (una riga per opera)
+   └── foto → Cloudinary Media Library (upload dal CMS, non copia-incolla URL)
                         │
                         ▼
-              scripts/build-opere.js   (Node, zero dipendenze)
+              content/opere/<slug>.json   (una riga per opera, nel repository)
+                        │
+                        ▼
+              scripts/build.js   (Node, zero dipendenze)
               eseguito da Netlify come build command
                         │
                         ▼
-              data/opere.json   (generato, MAI versionato — vedi .gitignore)
-              solo le opere con stato "pubblicata", ordinate per "ordine"
+              dist/   (SOLO i file pubblici — vedi §3)
+              dist/data/opere.json: solo le opere "pubblicata", ordinate
                         │
                         ▼
-              index.html → prova /data/opere.json, se assente usa ancora
-                           /.netlify/functions/notion (percorso invariato)
+              index.html → fetch('/data/opere.json')
+                           Nessun fallback, nessuna chiamata a servizi
+                           esterni. Catalogo vuoto o assente → messaggio
+                           "Nessuna opera pubblicata ancora." (o un
+                           messaggio di errore se il file manca del tutto).
 ```
 
-Decisioni di design, da convalidare con l'uso reale:
+Non esiste più alcun percorso verso Notion: niente Netlify Function, niente
+variabili d'ambiente `NOTION_TOKEN`/`NOTION_DATABASE_ID`, niente chiamata di
+rete dal browser verso servizi diversi dal proprio dominio.
 
-- **Niente pulsanti separati "Salva bozza" / "Pubblica" / "Nascondi" nell'interfaccia Decap.**
-  Decap non li offre in modo nativo senza attivare l'"Editorial Workflow" (un
-  sistema a rami Git con una bacheca a colonne), la cui compatibilità con il
-  backend `turbo-github` non è documentata e non è stato possibile verificarla
-  in questo ambiente. Ho scelto un'unica scelta "Stato" (Bozza / Pubblicata /
-  Nascosta) nel modulo opera: Danilo cambia lo stato e preme l'unico pulsante
-  "Salva" di Decap. **Questo è l'esperimento principale da validare con
-  Danilo**: se il flusso a stato singolo risulta meno chiaro delle tre azioni
-  separate richieste, vale la pena investire nel vero editorial workflow.
-- **Eliminazione disattivata nel pannello** (`delete: false` in
-  `admin/config.yml`): un'opera si nasconde, non si cancella. Applica a
-  livello di interfaccia la regola "non cancellare opere esistenti".
-- Il catalogo generato (`data/opere.json`) espone solo i campi che il sito
-  pubblico già usa (titolo, immagine, tecnica, dimensioni, anno, descrizione):
-  nessun dato di bozza o nascosto finisce mai nel file pubblicato.
+## 2. File creati, modificati, eliminati rispetto alla Fase 3
 
-## 2. File creati o modificati
-
-| File | Cosa fa |
+| File | Cosa cambia |
 |---|---|
-| `admin/index.html` | Pagina che carica Decap CMS da CDN (`unpkg.com`) |
-| `admin/config.yml` | Configurazione CMS: backend Turbo, Cloudinary, modello dati opere |
-| `content/opere/*.json` | 3 opere di **prova con dati fittizi** (una per ogni stato) |
-| `assets/test-opere/*.jpg` | 3 immagini segnaposto generate per i test, nessuna foto reale |
-| `scripts/build-opere.js` | Genera `data/opere.json` da `content/opere/*.json`, valida i campi obbligatori |
-| `netlify.toml` | Aggiunge il build command, `publish = "."`, e una CSP dedicata a `/admin/*` |
-| `index.html` | `caricaOpere()` ora prova prima `/data/opere.json`, poi Notion (invariato) |
-| `.gitignore` | Esclude `data/opere.json` (file generato, non va in Git) |
+| `netlify/functions/notion.js` | **Eliminato** |
+| `index.html` | `caricaOpere()` legge solo `/data/opere.json`, nessun fallback |
+| `scripts/build-opere.js` → `scripts/build.js` | Rinominato ed esteso: oltre a generare il catalogo, assembla `dist/` |
+| `scripts/rimuovi-opere-prova.js` | **Nuovo**: rimuove le 3 opere fittizie prima del lancio (vedi §6) |
+| `test/build.test.js` | **Nuovo**: test automatici sul catalogo (vedi §5) |
+| `netlify.toml` | `publish = "dist"` (non più `"."`), niente più `functions =`, CSP senza `api.notion.com` |
+| `COME-AGGIORNARE.txt` | Riscritto: nessun riferimento a Notion, descrive il flusso CMS |
+| `README-CMS.md` | Questo file |
 
-Nessun file Notion-related è stato toccato o rimosso.
+`admin/index.html`, `admin/config.yml`, `content/opere/*.json`,
+`assets/test-opere/*.jpg` restano come nella Fase 3 (nessuna modifica
+sostanziale necessaria).
 
-## 3. Cosa ho potuto verificare in questo ambiente (senza accesso a Internet)
+## 3. Sicurezza della pubblicazione
 
-Eseguito davvero, non solo letto nella documentazione:
+Prima (Fase 3): `publish = "."` pubblicava **l'intero repository**, inclusi
+`content/opere/*.json` (bozze e nascoste comprese), `scripts/`,
+`README-CMS.md`, `COME-AGGIORNARE.txt` e `netlify.toml` stesso — tutti
+raggiungibili dal dominio pubblico.
 
-- `node scripts/build-opere.js` sulle 3 opere di prova → genera `data/opere.json`
-  con **solo** l'opera "pubblicata" (1 di 3), ordinata correttamente, bozza e
-  nascosta escluse. Un JSON non valido o un campo obbligatorio mancante ferma
-  il build con un errore leggibile (provato forzando un file malformato).
-- Servito il sito con un server statico locale e aperto con un browser headless
-  reale (Playwright): la galleria mostra l'unica opera pubblicata, il mosaico
-  hero mostra la sua immagine, il lightbox si apre al click con titolo,
-  metadati e descrizione corretti, **zero errori in console**.
-- Screenshot della pagina risultante conservato per questo collaudo.
+Ora: `scripts/build.js` assembla una cartella `dist/` che contiene solo:
 
-Questo dimostra che la catena "contenuto → build → catalogo statico →
-rendering sito" funziona. **Non dimostra** che Decap CMS, Decap Turbo o
-Cloudinary funzionino nella realtà: quella parte richiede Internet e account
-veri, che questo ambiente di sviluppo non ha.
+```
+dist/
+├── index.html
+├── thanks.html
+├── assets/…
+├── admin/index.html
+├── admin/config.yml      (nessun segreto: cloud_name e api_key non sono
+│                           dati sensibili, lo conferma la documentazione
+│                           Decap; l'api_secret di Cloudinary non ci va MAI)
+└── data/opere.json       (solo opere "pubblicata")
+```
 
-## 4. Cosa resta da verificare con accesso reale (non testabile qui)
+`content/opere/*.json`, `scripts/`, `test/`, `README-CMS.md`,
+`COME-AGGIORNARE.txt`, `netlify.toml`, `.git/` **non vengono copiati in
+`dist/`** e quindi non sono raggiungibili dal dominio pubblico. Verificato
+con `ls -R dist` dopo il build (vedi §5).
 
-Confermato solo dalla documentazione ufficiale Decap (ricerca mirata, non
-lettura diretta delle pagine — anche quella bloccata dalla rete del
-sandbox), **mai da un browser reale**:
+**Avvertenza che non posso togliere con il codice**: se il repository
+GitHub `nksbrg/danilo-arte` è pubblico, chiunque può comunque leggere
+`content/opere/*.json` — bozze e opere nascoste comprese — direttamente su
+GitHub, a prescindere da cosa pubblica Netlify. Il build qui descritto
+protegge solo il **dominio del sito**, non il repository. Se le opere non
+pubblicate devono restare riservate, il repository deve essere privato: è
+una decisione che spetta a te, non l'ho cambiata e non la cambio
+autonomamente.
+
+## 4. Verificato in questo ambiente (senza accesso a Internet)
+
+- `node scripts/build.js` su opere con stato misto (pubblicata / bozza /
+  nascosta / archiviata) → `dist/data/opere.json` contiene solo le
+  pubblicate, ordinate in modo deterministico anche a parità di "ordine"
+  (pareggio risolto per titolo).
+- `node --test test/` → test automatici sulla lettura/filtro/ordinamento del
+  catalogo, vedi §5.
+- Sito servito da `dist/` con un server statico locale e aperto con un
+  browser headless reale (Playwright): homepage, galleria, mosaico hero,
+  lightbox verificati con un'opera pubblicata; galleria con catalogo vuoto
+  mostra "Nessuna opera pubblicata ancora."; modulo contatti presente,
+  campi e honeypot intatti (l'invio reale a Netlify Forms non è testabile
+  senza un deploy reale).
+- `ls -R dist/` dopo il build: confermato che non compaiono
+  `content/`, `scripts/`, `test/`, `README-CMS.md`, `COME-AGGIORNARE.txt`,
+  `netlify.toml`.
+
+**Non verificabile qui** (richiede account reali e Internet): login Decap
+Turbo, login/upload Cloudinary, comportamento su smartphone reale, il
+deploy Netlify vero e proprio. Vedi §7 per l'elenco completo di cosa resta
+da controllare dal vivo.
+
+## 5. Test automatici
+
+`test/build.test.js` usa il test runner integrato di Node (`node:test`,
+nessuna dipendenza da installare). Esegue, su cartelle di fixture temporanee
+(mai sul vero `content/opere/`):
+
+- Le opere "bozza", "nascosta" e "archiviata" sono escluse dal catalogo
+  pubblico; solo "pubblicata" vi compare.
+- L'ordinamento rispetta il campo "ordine"; a parità di "ordine" il
+  risultato è sempre lo stesso (per titolo), indipendentemente dall'ordine
+  con cui i file vengono letti dal filesystem.
+- Un file con "titolo" o "immagine" mancanti fa fallire il build con un
+  errore leggibile, invece di generare un catalogo corrotto in silenzio.
+
+Si esegue con: `node --test test/`
+
+## 6. Contenuti iniziali e rimozione prima del lancio
+
+Le 3 opere fittizie (`content/opere/opera-di-prova-*.json`) restano, come
+richiesto, solo per collaudare il prototipo. Prima di lanciare il sito con
+le opere vere di Danilo:
+
+```
+node scripts/rimuovi-opere-prova.js
+node scripts/build.js
+```
+
+Il primo comando rimuove le 3 opere di prova e le immagini segnaposto
+associate; il secondo rigenera `dist/` (che risulterà con un catalogo
+vuoto, finché Danilo non pubblica opere vere dal pannello). Dopo aver
+verificato il risultato, fare commit e push di `content/` e `assets/`.
+
+## 7. Cosa resta da verificare con accesso reale (non testabile qui)
 
 - **Login di Danilo**: Decap Turbo fa accedere gli invitati con email e
-  password tramite un link di invito; **non serve un account GitHub**. Solo
-  chi crea il sito Turbo e lo collega al repository (un passo tecnico, fatto
-  una volta) deve avere accesso a GitHub — non Danilo.
-- **Piano gratuito**: Decap Turbo Free = 1 sito, 1 posto, gratis a tempo
-  indeterminato, nessuna carta di credito. Coincide con l'ipotesi di costo
-  €0/mese fatta in Fase 2, per un solo utilizzatore permanente (Danilo).
-- **Cloudinary — possibile secondo login**: la documentazione Decap dice
-  esplicitamente che per usare la Media Library di Cloudinary "l'utente deve
-  avere eseguito l'accesso all'account Cloudinary collegato alla api_key".
-  Questo suggerisce che Danilo potrebbe dover autenticarsi **anche** su
-  Cloudinary, oltre che su Decap Turbo — cioè **due login distinti**, proprio
-  il caso che andava segnalato esplicitamente. Non è stato possibile
-  verificare se questo valga solo per sfogliare la libreria media esistente o
-  anche per il semplice caricamento di una nuova foto. **Da provare dal vivo
-  prima di considerare il flusso "un solo login" risolto.**
-- **Usabilità su smartphone**: nessuna fonte indipendente affidabile trovata.
-  Un sito di terzi (concorrente di Decap, quindi non neutrale) descrive
-  l'editor su mobile come "utilizzabile ma a volte scomodo". Da provare su un
-  telefono reale prima di dire a Danilo che funziona bene da smartphone.
-- **CSP di `/admin/*`**: ho scritto una policy che permette gli host
-  presumibilmente necessari (unpkg.com, api.cloudinary.com, api.github.com,
-  dominio Decap, Supabase) dedotti dalla documentazione, ma **non osservati
-  da un browser reale**. Al primo accesso reale, aprire la console del
-  browser: se compaiono blocchi CSP, aggiungere l'host mancante in
-  `netlify.toml` nel blocco `for = "/admin/*"`.
-- **Localizzazione italiana completa**: ho impostato `locale: "it"`, ma non
-  ho potuto verificare se copre tutte le stringhe dell'interfaccia (pulsanti,
-  messaggi di errore) nella versione di Decap CMS caricata da CDN.
+  password tramite link di invito; non serve un account GitHub. Solo chi
+  crea il sito Turbo e lo collega al repository deve avere accesso a
+  GitHub — non Danilo. (Dedotto dalla documentazione ufficiale Decap,
+  cercata ma non raggiungibile direttamente da questo ambiente — nessun
+  browser reale l'ha confermato.)
+- **Piano gratuito Decap Turbo**: 1 sito, 1 posto, gratis a tempo
+  indeterminato, nessuna carta di credito — coerente con un solo
+  utilizzatore permanente (Danilo) a costo €0/mese.
+- **Cloudinary — possibile secondo login**: la documentazione Decap dice che
+  per usare la Media Library serve essere loggati anche nell'account
+  Cloudinary collegato alla api_key. Quindi Danilo potrebbe dover
+  autenticarsi **due volte** (Decap Turbo + Cloudinary). Da provare dal vivo
+  prima di considerare "un solo accesso" un fatto acquisito.
+- **Usabilità su smartphone**: nessuna fonte indipendente affidabile
+  trovata. Da provare su un telefono reale.
+- **CSP di `/admin/*`**: gli host elencati in `netlify.toml` sono dedotti
+  dalla documentazione, non osservati da un browser reale. Al primo
+  accesso vero, controllare la console per errori CSP e correggere.
+- **Collegamento Netlify↔GitHub**: non verificabile dal repository se oggi
+  esista un deploy automatico collegato a GitHub, o solo quello manuale
+  descritto storicamente. Senza quel collegamento, `scripts/build.js` non
+  gira mai da solo.
 - **"Le mie opere" con miniature**: Decap mostra di default un elenco
-  testuale (titolo — stato) nella lista a sinistra, non miniature delle
-  foto. La foto si vede aprendo la singola opera (anteprima automatica a
-  destra). Se Danilo ha bisogno delle miniature nell'elenco per riconoscere
-  le opere a colpo d'occhio, serve svilupparlo appositamente: non l'ho
-  costruito ora per non introdurre complessità non richiesta esplicitamente
-  e non verificabile qui.
+  testuale (titolo — stato), non miniature. La foto si vede aprendo la
+  singola opera. Non sviluppato apposta per non introdurre complessità non
+  richiesta esplicitamente.
 
-## 5. Passaggi manuali per attivare davvero il prototipo
+## 8. Passaggi manuali per attivare i servizi reali
 
-Da fare fuori da questa sessione, con accesso reale ai servizi:
+Non eseguiti in questa fase, come richiesto. In sintesi (dettagli nella
+Fase 3, invariati):
 
-1. **GitHub**: installare la Decap Turbo GitHub App su `nksbrg/danilo-arte`
-   (richiede i permessi di un proprietario del repository).
-2. **Decap Turbo**: creare un account su decapcms.org/turbo, creare un sito
-   collegato al repository e al branch `claude/clever-darwin-ay3nu6`, copiare
-   l'ID del sito e incollarlo in `admin/config.yml` al posto di
-   `DA-CONFIGURARE-turbo-site-id`. Invitare Danilo come membro di quel sito
-   (email, non serve account GitHub).
-3. **Cloudinary**: confermare cloud name e API key dell'account già in uso
-   (non crearne uno nuovo), inserirli in `admin/config.yml` al posto dei
-   placeholder `DA-CONFIGURARE-*`. Verificare se serve login Cloudinary
-   separato per Danilo (vedi punto critico sopra) e, se sì, decidere se è
-   accettabile o se serve un upload firmato lato server.
-4. **Netlify**: confermare che questo sito sia davvero collegato a GitHub con
-   deploy automatico (il file `COME-AGGIORNARE.txt` descrive solo un deploy
-   manuale trascinando la cartella — non verificabile da qui se oggi sia
-   anche collegato a GitHub). Senza collegamento Git→Netlify, il build
-   command aggiunto a `netlify.toml` non verrà mai eseguito automaticamente.
-5. Solo a questo punto: aprire `/admin` dal sito di anteprima, loggarsi come
-   Danilo farebbe, e ripetere i test di usabilità del punto 6.
-
-## 6. Modalità di accesso al CMS (una volta attivato)
-
-Danilo apre `https://<dominio-del-sito>/admin`, inserisce email e password
-Decap Turbo (ricevute via invito), e arriva direttamente al pannello in
-italiano con "Le mie opere" e "Aggiungi opera". Nessun passaggio da GitHub,
-Netlify o Notion è previsto in questo flusso.
-
-## 7. Prossimi passi per migrare le opere da Notion
-
-Non ancora fatto, come richiesto. Il piano resta quello della Fase 2
-(sezione "Piano di implementazione", passi 4, 8, 9, 11, 12): export completo
-da Notion (incluse bozze e pagine oltre la prima), conversione nello schema
-`content/opere/*.json` usato qui, inventario e verifica delle immagini
-Cloudinary realmente in uso, dual-run tra vecchio e nuovo catalogo, e cutover
-solo dopo collaudo con Danilo. Questo prototipo non contiene alcun dato reale
-di Danilo: solo 3 opere di test con etichette esplicite "dato fittizio".
+1. Installare la Decap Turbo GitHub App su `nksbrg/danilo-arte`.
+2. Creare un sito su decapcms.org/turbo collegato al repository e al branch
+   `claude/clever-darwin-ay3nu6`; copiare l'ID del sito in
+   `admin/config.yml` al posto di `DA-CONFIGURARE-turbo-site-id`; invitare
+   Danilo via email.
+3. Confermare cloud name e API key Cloudinary (account già esistente, non
+   crearne uno nuovo) e inserirli in `admin/config.yml`.
+4. Confermare che Netlify sia collegato a GitHub con deploy automatico.
+5. Decidere se il repository GitHub deve restare pubblico o diventare
+   privato, alla luce dell'avvertenza al §3.
