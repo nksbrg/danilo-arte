@@ -88,7 +88,6 @@ function messaggioErroreSupabase(error) {
 // una password personale. Il flag viene catturato prima che l'SDK pulisca l'URL.
 let cambioPasswordRichiesto = /(?:^|[&#])type=(?:invite|recovery)(?:&|$)/.test(window.location.hash)
   || new URLSearchParams(window.location.search).get("type") === "recovery";
-let cambioPasswordInCorso = false;
 
 function renderNuovaPassword(messaggio) {
   app.innerHTML = `
@@ -101,21 +100,21 @@ function renderNuovaPassword(messaggio) {
         <input type="password" id="nuova-password" minlength="12" required autocomplete="new-password">
         <label for="conferma-password">Conferma password</label>
         <input type="password" id="conferma-password" minlength="12" required autocomplete="new-password">
-        <p style="margin-top:16px;"><button type="submit">Salva password</button></p>
+        <p class="azioni-form"><button type="submit">Salva password</button></p>
       </form>
     </div>`;
   document.getElementById("form-nuova-password").addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (cambioPasswordInCorso) return;
+    const bottone = e.target.querySelector("button");
+    if (bottone.disabled) return; // doppio invio: ignorato
+    bottone.disabled = true;
     const password = document.getElementById("nuova-password").value;
     const conferma = document.getElementById("conferma-password").value;
     if (password !== conferma) {
       renderNuovaPassword({ tipo: "errore", testo: "Le password non coincidono." });
       return;
     }
-    cambioPasswordInCorso = true;
     const { error } = await supabaseClient.auth.updateUser({ password });
-    cambioPasswordInCorso = false;
     if (error) {
       renderNuovaPassword({ tipo: "errore", testo: messaggioErroreSupabase(error) });
       return;
@@ -131,9 +130,41 @@ function renderNuovaPassword(messaggio) {
 // Avvio: capiamo lo stato di autenticazione corrente
 // ---------------------------------------------------------------------
 
+function renderNonAutorizzato() {
+  app.innerHTML = `
+    <div class="card">
+      <h1>Accesso non autorizzato</h1>
+      <p class="messaggio errore">
+        Il tuo account è autenticato ma non è abilitato a gestire le opere
+        di questo sito.
+      </p>
+      <p class="azioni-form"><button type="button" id="btn-logout-non-autorizzato">Esci</button></p>
+    </div>`;
+  document.getElementById("btn-logout-non-autorizzato").addEventListener("click", async () => {
+    await supabaseClient.auth.signOut();
+  });
+}
+
+// onAuthStateChange scatta per login, logout, refresh del token,
+// recupero password e aggiornamento utente: più eventi possono arrivare
+// ravvicinati (es. all'avvio della pagina, o un USER_UPDATED generato
+// dalla chiamata a updateUser() dentro renderNuovaPassword, che si
+// sovrappone alla chiamata esplicita ad avvia() subito dopo). Senza una
+// protezione, due chiamate concorrenti a avvia() potrebbero risolversi
+// fuori ordine (quella più vecchia dopo quella più nuova) e lasciare in
+// pagina uno stato non corrispondente alla sessione reale. "generazioneAvvio"
+// fa sì che solo l'ultima chiamata avviata vinca: ogni chiamata precedente
+// si accorge di essere stata superata (confrontando il proprio numero con
+// quello corrente) e non aggiorna più l'interfaccia.
+let generazioneAvvio = 0;
+
 async function avvia() {
+  const miaGenerazione = ++generazioneAvvio;
   app.innerHTML = "Verifica dell'accesso in corso…";
+
   const { data: { session }, error } = await supabaseClient.auth.getSession();
+  if (miaGenerazione !== generazioneAvvio) return; // superata da una chiamata più recente
+
   if (error) {
     app.innerHTML = renderMessaggio("errore", messaggioErroreSupabase(error));
     return;
@@ -146,16 +177,33 @@ async function avvia() {
     renderNuovaPassword();
     return;
   }
-  // Nessuna verifica MFA: chi ha una sessione valida ed è nella whitelist
-  // public.admins può gestire le opere. Vedi nota in testa al file.
+
+  // Nessuna verifica MFA: la whitelist public.admins (via is_admin(), letta
+  // qui tramite mio_stato_admin()) è l'unica condizione. Un utente
+  // autenticato ma non in whitelist vede un messaggio esplicito invece di
+  // una dashboard che non può comunque usare (le scritture restano bloccate
+  // dalle policy RLS indipendentemente da questo controllo lato client).
+  const { data: stato, error: erroreStato } = await supabaseClient.rpc("mio_stato_admin");
+  if (miaGenerazione !== generazioneAvvio) return;
+
+  if (erroreStato) {
+    app.innerHTML = renderMessaggio("errore", messaggioErroreSupabase(erroreStato));
+    return;
+  }
+  if (!stato || !stato.is_admin) {
+    renderNonAutorizzato();
+    return;
+  }
+
   renderDashboard();
 }
 
 supabaseClient.auth.onAuthStateChange((evento, _sessione) => {
   if (evento === "PASSWORD_RECOVERY") cambioPasswordRichiesto = true;
-  if (evento === "USER_UPDATED" && cambioPasswordInCorso) return;
-  // Ad ogni cambio di sessione (login, logout, refresh) ricalcoliamo la
-  // schermata corretta da zero, invece di tentare aggiornamenti parziali.
+  // Ad ogni cambio di sessione ricalcoliamo la schermata corretta da zero,
+  // invece di tentare aggiornamenti parziali. Il contatore di generazione
+  // sopra evita che chiamate concorrenti si sovrappongano in modo
+  // inconsistente.
   avvia();
 });
 
@@ -175,7 +223,7 @@ function renderLogin(messaggio) {
         <input type="email" id="email" required autocomplete="username">
         <label for="password">Password</label>
         <input type="password" id="password" required autocomplete="current-password">
-        <p style="margin-top:16px;">
+        <p class="azioni-form">
           <button type="submit">Accedi</button>
         </p>
       </form>
@@ -297,14 +345,13 @@ async function renderDashboard(messaggio) {
 
 function renderConfermaEliminazione(opera) {
   const sfondo = document.createElement("div");
-  sfondo.className = "card";
-  sfondo.style.cssText = "position:fixed;inset:0;max-width:none;margin:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10;";
+  sfondo.className = "overlay-conferma";
   sfondo.innerHTML = `
-    <div class="card" style="max-width:400px;">
+    <div class="card card-stretta">
       <p><strong>Eliminare definitivamente "${escapeHtml(opera.titolo)}"?</strong></p>
       <p class="hint">L'opera sparirà subito dal sito. L'operazione non si può annullare dal pannello.</p>
       <div id="esito-elimina"></div>
-      <p style="margin-top:16px;">
+      <p class="azioni-form">
         <button type="button" class="pericolo" id="conferma-elimina">Sì, elimina</button>
         <button type="button" class="secondario" id="annulla-elimina">Annulla</button>
       </p>
@@ -345,7 +392,7 @@ function renderFormOpera(opera) {
         <input type="file" id="campo-foto" accept="image/jpeg,image/png,image/webp" ${inModifica ? "" : "required"}>
         <div id="esito-foto"></div>
         ${inModifica ? `<img src="${escapeHtml(urlPubblicoImmagine(opera.image_path))}" class="anteprima-foto" alt="Foto attuale">` : ""}
-        <img id="anteprima-nuova-foto" class="anteprima-foto" style="display:none;" alt="Anteprima">
+        <img id="anteprima-nuova-foto" class="anteprima-foto nascosto" alt="Anteprima">
 
         <label for="campo-titolo">Titolo</label>
         <input type="text" id="campo-titolo" required value="${escapeHtml(opera?.titolo || "")}">
@@ -370,7 +417,7 @@ function renderFormOpera(opera) {
         </details>
 
         <div id="esito-form"></div>
-        <p style="margin-top:16px;">
+        <p class="azioni-form">
           <button type="submit" id="btn-salva">Salva</button>
           <button type="button" class="secondario" id="btn-annulla">Annulla</button>
         </p>
@@ -385,7 +432,7 @@ function renderFormOpera(opera) {
     const esitoFoto = document.getElementById("esito-foto");
     const anteprima = document.getElementById("anteprima-nuova-foto");
     esitoFoto.innerHTML = "";
-    anteprima.style.display = "none";
+    anteprima.classList.add("nascosto");
     const file = campoFoto.files[0];
     if (!file) return;
     const erroreValidazione = validaFile(file);
@@ -395,7 +442,7 @@ function renderFormOpera(opera) {
       return;
     }
     anteprima.src = URL.createObjectURL(file);
-    anteprima.style.display = "block";
+    anteprima.classList.remove("nascosto");
   });
 
   document.getElementById("form-opera").addEventListener("submit", async (e) => {

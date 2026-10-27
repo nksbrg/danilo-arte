@@ -15,12 +15,34 @@
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src https://fonts.gstatic.com; img-src * data: blob:; connect-src 'self' https://*.supabase.co; frame-src 'self' https://www.openstreetmap.org;"
+    # HTTPS è comunque forzato da Netlify per i domini netlify.app e per
+    # qualunque dominio personalizzato con "Force TLS" attivo (impostazione
+    # di Netlify, non di questo file). Questo header è un rinforzo esplicito
+    # lato browser. max-age a 1 anno, senza "preload": l'invio alla lista di
+    # preload dei browser è irreversibile per il dominio e va deciso a parte
+    # da chi gestisce il dominio, non imposto qui.
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    # Nota: il sito pubblico usa ancora CSS/JS inline in index.html, quindi
+    # script-src e style-src includono 'unsafe-inline' qui. Rimuoverlo
+    # richiederebbe di spostare tutto lo stile e lo script inline in file
+    # esterni (con nonce o hash) e un collaudo completo: non fatto in questa
+    # modifica per non rischiare di rompere il sito pubblico (vedi
+    # SECURITY-AUDIT.md). object-src/base-uri/frame-ancestors/form-action
+    # sono invece aggiunte sicure che non richiedono alcun adattamento del
+    # codice esistente.
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src https://fonts.gstatic.com; img-src * data: blob:; connect-src 'self' https://*.supabase.co; frame-src 'self' https://www.openstreetmap.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"
 
-# Supabase CMS at /admin. No Cloudinary, Decap, or third-party CMS scripts.
+# Pannello amministrativo (Supabase Auth + Postgres + Storage) a /admin.
+# Codice interamente nostro (nessun bundle di terze parti): niente
+# 'unsafe-inline' né 'unsafe-eval' in script-src, e dalla rifattorizzazione
+# degli stili inline in admin/style.css (vedi SECURITY-AUDIT.md) nemmeno in
+# style-src. Google Fonts non è usato da questo pannello (usa i font di
+# sistema): rimosso dalla policy perché non necessario, non per un
+# cambiamento di design.
 [[headers]]
   for = "/admin/*"
   [headers.values]
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co; frame-src 'none'; object-src 'none';"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; font-src 'self'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none';"

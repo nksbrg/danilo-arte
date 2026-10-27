@@ -535,7 +535,15 @@
         observer.observe(item);
       });
     } catch (err) {
-      gallery.innerHTML = `<div class="gallery-error">Impossibile caricare le opere al momento.<br><small>${err.message}</small></div>`;
+      gallery.innerHTML = '';
+      const box = document.createElement('div');
+      box.className = 'gallery-error';
+      box.appendChild(document.createTextNode('Impossibile caricare le opere al momento.'));
+      box.appendChild(document.createElement('br'));
+      const dettaglio = document.createElement('small');
+      dettaglio.textContent = err && err.message ? err.message : 'Errore sconosciuto.';
+      box.appendChild(dettaglio);
+      gallery.appendChild(box);
     }
   }
 
