@@ -429,20 +429,63 @@ function renderFormOpera(opera) {
   document.getElementById("btn-annulla").addEventListener("click", () => renderDashboard());
 
   const campoFoto = document.getElementById("campo-foto");
-  // Risultato dell'elaborazione (ridimensionamento/compressione) della foto
-  // scelta più di recente: { blob, larghezza, altezza, ridimensionata }.
-  // Calcolato una volta alla selezione del file e riusato al salvataggio,
-  // invece di rielaborare l'immagine ad ogni tentativo di invio.
-  let elaborazioneCorrente = null;
+  // Catturati una sola volta qui (non ri-letti con document.getElementById
+  // dentro al codice asincrono sotto): se questo modulo viene chiuso
+  // (Annulla/Salva) mentre un'elaborazione è ancora in corso in background,
+  // questi riferimenti restano quelli del modulo ORMAI RIMOSSO dal DOM,
+  // anche se un modulo successivo riusa gli stessi id. Scrivere su un nodo
+  // staccato dal documento non ha alcun effetto visibile e non lancia
+  // errori: evita così che il risultato di una selezione di un modulo
+  // precedente finisca per sbaglio nell'anteprima di un modulo nuovo.
+  const esitoFoto = document.getElementById("esito-foto");
+  const anteprima = document.getElementById("anteprima-nuova-foto");
+  // Promise dell'elaborazione (ridimensionamento/compressione) in corso o
+  // già conclusa per il file ATTUALMENTE selezionato: { blob, larghezza,
+  // altezza, ridimensionata, profiloColoreEsteso }. Usare questa stessa
+  // promise sia per l'anteprima (dentro al listener "change") sia per il
+  // salvataggio (dentro al submit) garantisce che l'immagine mostrata in
+  // anteprima e quella effettivamente caricata siano SEMPRE la stessa,
+  // anche se il salvataggio parte prima che l'elaborazione sia finita.
+  // "generazioneElaborazione" protegge dal caso in cui l'amministratore
+  // selezioni una foto diversa prima che l'elaborazione della precedente sia
+  // terminata: solo l'ultima selezione può aggiornare anteprima/messaggio,
+  // indipendentemente dall'ordine in cui le elaborazioni finiscono davvero.
+  let elaborazionePromise = null;
   let generazioneElaborazione = 0;
+  let urlAnteprimaPrecedente = null;
 
-  campoFoto.addEventListener("change", async () => {
+  function elaboraEProteggi(file, miaGenerazione, { aggiornaUi }) {
+    return (async () => {
+      let risultato;
+      try {
+        risultato = await elaboraImmagine(file);
+      } catch (_) {
+        // Non dovrebbe mai succedere (elaboraImmagine gestisce già i propri
+        // errori internamente), ma in caso contrario non blocchiamo il
+        // salvataggio: si ripiega sul file originale, come se non fosse
+        // stata possibile alcuna ottimizzazione.
+        risultato = { blob: file, larghezza: null, altezza: null, ridimensionata: false, profiloColoreEsteso: false };
+      }
+      if (aggiornaUi && miaGenerazione === generazioneElaborazione) {
+        esitoFoto.innerHTML = risultato.profiloColoreEsteso
+          ? `<p class="hint">Fotografia con un profilo colore esteso (es. Display P3): caricata alla risoluzione originale, senza ridimensionamento né ricompressione, per non rischiare di alterarne i colori. Il file sarà più pesante del solito.</p>`
+          : risultato.ridimensionata
+          ? `<p class="hint">Fotografia ottimizzata per il web (${risultato.larghezza}×${risultato.altezza}px). L'opera verrà pubblicata con questa versione, senza ritagli né modifiche di colore.</p>`
+          : "";
+        if (urlAnteprimaPrecedente) URL.revokeObjectURL(urlAnteprimaPrecedente);
+        urlAnteprimaPrecedente = URL.createObjectURL(risultato.blob);
+        anteprima.src = urlAnteprimaPrecedente;
+        anteprima.classList.remove("nascosto");
+      }
+      return risultato;
+    })();
+  }
+
+  campoFoto.addEventListener("change", () => {
     const miaGenerazione = ++generazioneElaborazione;
-    const esitoFoto = document.getElementById("esito-foto");
-    const anteprima = document.getElementById("anteprima-nuova-foto");
     esitoFoto.innerHTML = "";
     anteprima.classList.add("nascosto");
-    elaborazioneCorrente = null;
+    elaborazionePromise = null;
     const file = campoFoto.files[0];
     if (!file) return;
     const erroreValidazione = validaFile(file);
@@ -453,15 +496,7 @@ function renderFormOpera(opera) {
     }
 
     esitoFoto.innerHTML = "Elaborazione della fotografia…";
-    const risultato = await elaboraImmagine(file);
-    if (miaGenerazione !== generazioneElaborazione) return; // è stata scelta un'altra foto nel frattempo
-
-    elaborazioneCorrente = risultato;
-    esitoFoto.innerHTML = risultato.ridimensionata
-      ? `<p class="hint">Fotografia ottimizzata per il web (${risultato.larghezza}×${risultato.altezza}px). L'opera verrà pubblicata con questa versione, senza ritagli né modifiche di colore.</p>`
-      : "";
-    anteprima.src = URL.createObjectURL(risultato.blob);
-    anteprima.classList.remove("nascosto");
+    elaborazionePromise = elaboraEProteggi(file, miaGenerazione, { aggiornaUi: true });
   });
 
   document.getElementById("form-opera").addEventListener("submit", async (e) => {
@@ -485,10 +520,17 @@ function renderFormOpera(opera) {
     let nuovoImagePath = null;
     let nuoveDimensioni = null;
     if (file) {
-      // Normalmente già pronta (calcolata al momento della selezione): la
-      // ricalcoliamo solo se per qualche motivo manca ancora (es. invio del
-      // modulo prima che l'elaborazione, asincrona, sia terminata).
-      const elaborazione = elaborazioneCorrente || await elaboraImmagine(file);
+      // Riusa la STESSA promise di elaborazione già avviata dalla selezione
+      // del file (anche se ancora in corso): così la foto caricata è
+      // garantita essere esattamente quella già mostrata (o in corso di
+      // elaborazione) in anteprima, mai il risultato di un calcolo separato
+      // che potrebbe finire con un file nel frattempo cambiato. Il
+      // fallback (elaborazionePromise assente) non dovrebbe verificarsi in
+      // pratica — "file" è non nullo solo se la validazione è già passata,
+      // che è anche quando "elaborazionePromise" viene impostata — ma resta
+      // per robustezza, senza toccare l'interfaccia (aggiornaUi: false) per
+      // non interferire con un'eventuale selezione successiva dell'utente.
+      const elaborazione = await (elaborazionePromise || elaboraEProteggi(file, generazioneElaborazione, { aggiornaUi: false }));
       nuoveDimensioni = { larghezza_px: elaborazione.larghezza, altezza_px: elaborazione.altezza };
       nuovoImagePath = `${new Date().getFullYear()}/${crypto.randomUUID()}.${estensioneDa(file)}`;
       const { error: erroreUpload } = await supabaseClient.storage
