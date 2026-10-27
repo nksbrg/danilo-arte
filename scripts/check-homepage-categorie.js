@@ -262,18 +262,23 @@ async function main() {
       }
     }
 
-    // --- Layout della fotografia: una sola opera per categoria (regressione
-    // introdotta da questa stessa PR nella versione precedente di questo
-    // branch) -------------------------------------------------------------
-    // Con `columns:3` fisso su ogni galleria, una categoria con una sola
-    // opera (come nella situazione reale attuale) lasciava 2 colonne vuote e
-    // comprimeva l'unica immagine in una colonna stretta, che min-height
-    // forzava a un'altezza sproporzionata: esattamente "stretta ed
-    // eccessivamente alta, con enormi spazi vuoti" riportato dall'utente.
-    // Verifica che l'immagine occupi invece l'intera larghezza della
-    // galleria, con un'altezza proporzionata (non quella forzata da
-    // min-height su una colonna stretta), indipendentemente dalle altre
-    // categorie (vedi anche il controllo successivo con molte opere).
+    // --- Layout della fotografia: una sola opera per categoria -----------
+    // Due regressioni riscontrate in sequenza su questo stesso componente:
+    // 1) con `columns:3` fisso, una categoria con una sola opera lasciava
+    //    2 colonne vuote e comprimeva l'unica immagine in una colonna
+    //    stretta, facendo scattare min-height:200px al posto delle
+    //    proporzioni reali ("stretta, eccessivamente alta, enormi spazi
+    //    vuoti");
+    // 2) la correzione successiva (column-count adattivo) eliminava gli
+    //    spazi vuoti ma faceva sì che l'unica foto riempisse l'intera
+    //    larghezza della sezione, apparendo sproporzionatamente grande
+    //    ("immagine enorme a tutta pagina") e non più "a mosaico".
+    // Il comportamento corretto, verificato qui: con poche opere, column-
+    // count resta adattivo (niente colonne vuote) MA ogni fotografia è
+    // comunque limitata alla dimensione che avrebbe in un mosaico a 3
+    // colonne pienamente popolato (--tile-ideale), centrata nello spazio
+    // assegnato — stessa dimensione "a mosaico" di sempre, indipendente dal
+    // numero di opere e coerente fra le tre categorie.
     {
       const catalogoUnaOpera = [
         { titolo: "Ricamo Unico", categoria: "ricami", ordine: 1, image_path: "opera-prova-1.jpg", tecnica: "Ricamo", dimensioni: "30x30cm", anno: 2024, descrizione: "" },
@@ -287,6 +292,7 @@ async function main() {
         await page.goto(`http://localhost:${PORT}/index.html`, { waitUntil: "networkidle" });
         await page.waitForTimeout(400);
 
+        const larghezzeItem = [];
         for (const [nomeSezione, idGalleria] of [["Ricami", "gallery-ricami"], ["Fuori di tela", "gallery-fuori-di-tela"], ["Paciughi", "gallery-paciughi"]]) {
           const info = await page.evaluate((id) => {
             const container = document.getElementById(id);
@@ -298,17 +304,25 @@ async function main() {
               larghezzaContainer: rectContainer.width,
               larghezzaItem: rectItem.width,
               altezzaItem: rectItem.height,
+              spazioSinistra: rectItem.left - rectContainer.left,
+              spazioDestra: rectContainer.right - rectItem.right,
             };
           }, idGalleria);
-          controlla(`${nomeSezione}, una sola opera: la galleria usa 1 colonna (non 3 fisse)`, info.colonne === "1");
-          controlla(`${nomeSezione}, una sola opera: l'immagine occupa l'intera larghezza della galleria, non 1/3`, Math.abs(info.larghezzaItem - info.larghezzaContainer) < 2);
-          // Prima della correzione, con la colonna compressa a ~1/3 della
-          // larghezza, min-height:200px dominava e produceva un riquadro
-          // alto quasi quanto largo (circa 200px) nonostante il formato
-          // reale della foto di prova sia orizzontale (1200x900, ~4:3):
-          // un'altezza vicina al minimo forzato segnala la regressione.
-          controlla(`${nomeSezione}, una sola opera: l'altezza è proporzionata alla larghezza reale (non il minimo forzato da una colonna stretta)`, info.altezzaItem > 220);
+          larghezzeItem.push(info.larghezzaItem);
+          controlla(`${nomeSezione}, una sola opera: la galleria usa 1 colonna (non 3 fisse, niente colonne vuote)`, info.colonne === "1");
+          controlla(`${nomeSezione}, una sola opera: l'immagine NON riempie l'intera larghezza della galleria (non più "enorme a tutta pagina")`, info.larghezzaItem < info.larghezzaContainer * 0.6);
+          controlla(`${nomeSezione}, una sola opera: l'immagine è comunque di dimensione ragionevole, non ridotta a miniatura`, info.larghezzaItem > info.larghezzaContainer * 0.15);
+          controlla(`${nomeSezione}, una sola opera: è centrata nello spazio disponibile (spazio simmetrico ai lati)`, Math.abs(info.spazioSinistra - info.spazioDestra) < 2);
+          // Foto di prova reali 1200x900 (4:3, vedi assets/test-opere/):
+          // un'altezza coerente con quel rapporto conferma che le
+          // proporzioni naturali sono rispettate, non quelle forzate da
+          // min-height su una colonna stretta né un ritaglio arbitrario.
+          const rapportoAtteso = 900 / 1200;
+          const rapportoReale = info.altezzaItem / info.larghezzaItem;
+          controlla(`${nomeSezione}, una sola opera: l'altezza rispetta le proporzioni reali della foto (4:3)`, Math.abs(rapportoReale - rapportoAtteso) < 0.05);
         }
+
+        controlla("una sola opera: le tre categorie mostrano fotografie della STESSA dimensione (mosaico coerente, non una diversa per sezione)", Math.max(...larghezzeItem) - Math.min(...larghezzeItem) < 2);
 
         await page.close();
       } finally {
@@ -317,7 +331,9 @@ async function main() {
     }
 
     // --- Layout della fotografia: il mosaico a più colonne resta invariato
-    // quando una categoria ha abbastanza opere da riempirlo ---------------
+    // quando una categoria ha abbastanza opere da riempirlo, E le due
+    // situazioni (poche/molte opere) risultano visivamente coerenti fra
+    // loro (stessa dimensione di tassello) ---------------------------------
     {
       const catalogoMolte = [];
       for (let i = 1; i <= 5; i++) {
@@ -329,8 +345,16 @@ async function main() {
         const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
         await page.goto(`http://localhost:${PORT}/index.html`, { waitUntil: "networkidle" });
         await page.waitForTimeout(400);
-        const colonne = await page.evaluate(() => getComputedStyle(document.getElementById("gallery-ricami")).columnCount);
-        controlla("categoria con 5 opere: il mosaico a 3 colonne resta quello originale (nessuna regressione nella direzione opposta)", colonne === "3");
+        const info = await page.evaluate(() => {
+          const container = document.getElementById("gallery-ricami");
+          const item = container.querySelector(".gallery-item");
+          return { colonne: getComputedStyle(container).columnCount, larghezzaItem: item.getBoundingClientRect().width };
+        });
+        controlla("categoria con 5 opere: il mosaico a 3 colonne resta quello originale (nessuna regressione nella direzione opposta)", info.colonne === "3");
+        // Stessa identica larghezza di tassello misurata sopra con 1 sola
+        // opera: il limite di dimensione non altera il mosaico quando le
+        // colonne reali sono già 3 (è "inerte", come documentato nel CSS).
+        controlla("il tassello del mosaico con 5 opere ha la stessa dimensione di quello con 1 sola opera (coerenza visiva)", info.larghezzaItem > 380 && info.larghezzaItem < 400);
         await page.close();
       } finally {
         server.close();
