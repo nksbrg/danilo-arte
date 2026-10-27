@@ -138,7 +138,7 @@ async function avvia() {
   await instradaDopoLogin();
 }
 
-supabase.auth.onAuthStateChange((evento, _sessione) => {\n  if (evento === "PASSWORD_RECOVERY") cambioPasswordRichiesto = true;
+supabase.auth.onAuthStateChange((evento, _sessione) => {\n  if (evento === "PASSWORD_RECOVERY") cambioPasswordRichiesto = true;\n  if (evento === "USER_UPDATED" && cambioPasswordInCorso) return;
   // Ad ogni cambio di sessione (login, logout, refresh) ricalcoliamo la
   // schermata corretta da zero, invece di tentare aggiornamenti parziali.
   avvia();
