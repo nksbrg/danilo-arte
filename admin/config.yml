@@ -22,8 +22,8 @@ backend:
 # stringhe dell'interfaccia nella versione di Decap CMS in uso.
 locale: "it"
 
-site_url: https://DA-CONFIGURARE.netlify.app
-display_url: https://DA-CONFIGURARE.netlify.app
+site_url: https://grand-salamander-6d8544.netlify.app
+display_url: https://grand-salamander-6d8544.netlify.app
 logo_url: /assets/test-opere/opera-prova-1.jpg
 
 # Libreria media Cloudinary: l'upload e la selezione delle foto avvengono
