@@ -6,7 +6,7 @@
 <title>ILO - Fuori di Tela</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Manrope:wght@300;400;500&family=IBM+Plex+Mono:wght@500&family=Kalam:wght@400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Space+Grotesk:wght@400;500;600;700&family=Kalam:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --yellow: #FFD91F;
@@ -16,9 +16,9 @@
     --orange: #FF6A25;
     --black: #171717;
     --cream: #FFFDF7;
-    --font-display: 'Anton', sans-serif;
-    --font-editorial: 'Manrope', sans-serif;
-    --font-micro: 'IBM Plex Mono', monospace;
+    --font-display: 'Bricolage Grotesque', sans-serif;
+    --font-editorial: 'Space Grotesk', sans-serif;
+    --font-micro: 'Space Grotesk', sans-serif;
     --font-hand: 'Kalam', cursive;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -58,15 +58,7 @@
   .hero-bg-ring { position:absolute; z-index:0; width:130px; height:130px; border:12px solid var(--yellow); border-radius:50%; bottom:10%; right:26%; opacity:0.4; transform:rotate(-10deg); }
   .hero-bg-square { position:absolute; z-index:0; width:70px; height:70px; background:var(--blue); opacity:0.35; transform:rotate(25deg); top:42%; left:8%; border:3px solid var(--black); }
   .hero-content { position:relative; z-index:1; }
-  /* Titolo monumentale su due righe, come da moodboard: "IMPARA" (blu) e
-     "L'ARTE" (rosso), quasi a contatto (line-height compresso, tipico di
-     Anton). Il coccodrillo (assets/visual-identity/characters/
-     crocodile-gripping-r.png) è posizionato in assoluto dentro
-     .riga-rossa, con left/transform calibrati empiricamente (screenshot
-     reali, vedi report) in percentuale della larghezza di "L'ARTE" intera
-     anziché della sola R, così la posizione resta proporzionata a ogni
-     dimensione di viewport senza dipendere dalla (stretta) larghezza del
-     singolo carattere. */
+  /* Il coccodrillo segue la riga rossa del titolo. */
   .hero-title { font-family:var(--font-display); font-weight:400; text-transform:uppercase; font-size:clamp(3.6rem,10vw,9.5rem); line-height:0.84; letter-spacing:-0.04em; margin-bottom:32px; }
   .hero-title .riga-blu { color:var(--blue); display:block; }
   .hero-title .riga-rossa { color:var(--red); display:block; width:fit-content; position:relative; }
@@ -282,6 +274,7 @@
     .contatti-bird { width:40px; }
   }
 </style>
+<link rel="stylesheet" href="assets/visual-identity/art-direction.css">
 </head>
 <body>
 
@@ -320,6 +313,7 @@
     <h1 class="hero-title">
       <span class="riga-blu">Impara</span>
       <span class="riga-rossa">L'ARTE<img class="hero-croc" src="assets/visual-identity/characters/crocodile-gripping-r.png" alt="" aria-hidden="true"></span>
+      <span class="riga-e">E...</span>
     </h1>
     <div class="hero-intro">
       <p class="hero-desc">
@@ -337,6 +331,7 @@
     </div>
   </div>
   <div class="hero-visual">
+    <span class="hero-note" aria-hidden="true">guarda meglio <img src="assets/visual-identity/gestures/arrow-02-loop.svg" alt=""></span>
     <div class="mosaic-grid" id="heroMosaic">
       <div class="mosaic-cell span2 ph-yellow" data-hero-slot></div>
       <div class="mosaic-cell ph-red tall" data-hero-slot></div>
@@ -404,7 +399,6 @@
   <div id="opere-contenuto" class="nascosto">
     <div class="opere-sezione" id="ricami">
       <div class="opere-sezione-head">
-        <p class="section-label">01</p>
         <h3 class="section-title">Ricami</h3>
       </div>
       <div class="gallery" id="gallery-ricami"></div>
@@ -412,7 +406,6 @@
 
     <div class="opere-sezione" id="fuori-di-tela">
       <div class="opere-sezione-head">
-        <p class="section-label">02</p>
         <h3 class="section-title">Fuori di tela</h3>
       </div>
       <div class="gallery" id="gallery-fuori-di-tela"></div>
@@ -420,7 +413,6 @@
 
     <div class="opere-sezione" id="paciughi">
       <div class="opere-sezione-head">
-        <p class="section-label">03</p>
         <h3 class="section-title">Paciughi</h3>
       </div>
       <div class="gallery" id="gallery-paciughi"></div>
@@ -428,10 +420,8 @@
 
     <div class="opere-sezione opere-sezione-provvisoria nascosto" id="opere-da-classificare">
       <div class="opere-sezione-head">
-        <p class="section-label">Provvisorio</p>
-        <h3 class="section-title">Da classificare</h3>
+        <h3 class="section-title">Altre opere</h3>
       </div>
-      <p class="opere-sezione-nota">Opere non ancora assegnate a una categoria: restano visibili qui finché Danilo non le classifica dal pannello.</p>
       <div class="gallery" id="gallery-da-classificare"></div>
     </div>
   </div>
