@@ -25,7 +25,7 @@ nav { padding:15px clamp(20px,3.5vw,56px); border-bottom:2px solid var(--black);
 .hero-bg-shape.s4,.hero-bg-splat,.hero-bg-square { display:none; }
 .hero-bg-ring { bottom:5%; right:42%; width:86px; height:86px; border-width:8px; opacity:.68; }
 .hero-content { align-self:center; min-width:0; }
-.hero-title { font-weight:800; font-size:clamp(4.5rem,10vw,10rem); line-height:.8; letter-spacing:-.02em; margin:0 0 48px; position:relative; width:max-content; max-width:100%; }
+.hero-title { font-weight:800; font-size:clamp(4.5rem,10vw,10rem); line-height:.8; letter-spacing:0; margin:0 0 48px; position:relative; width:max-content; max-width:100%; }
 .hero-title .riga-blu,.hero-title .riga-rossa { width:max-content; max-width:100%; }
 .hero-title .riga-blu { transform:rotate(-1.4deg); transform-origin:left center; }
 .hero-title .riga-rossa { margin-top:.08em; transform:rotate(.8deg); transform-origin:left center; }
@@ -100,11 +100,12 @@ nav { padding:15px clamp(20px,3.5vw,56px); border-bottom:2px solid var(--black);
 /* Yellow is the invitation; the form becomes part of the composition. */
 .contatti-group { display:grid; grid-template-columns:minmax(0,1fr) minmax(390px,.85fr); gap:clamp(30px,5vw,90px); padding:clamp(75px,7vw,115px) clamp(24px,6vw,96px); border:0; align-items:center; }
 .contatti-head,.contatti-group .contatti-form-area { padding:0; background:transparent; }
-.contatti-head { overflow:visible; }
+.contatti-head { overflow:visible; min-width:0; }
+.contatti-group .contatti-form-area { min-width:0; }
 .contatti-inner { max-width:none; text-align:left; }
 .contatti-head .section-label { color:var(--blue); }
-.contatti-title { font-weight:800; font-size:clamp(4rem,7.2vw,8rem); letter-spacing:-.08em; line-height:.86; margin:0 0 35px; transform:rotate(-1.4deg); }
-.contatti-title .rossa { display:block; width:max-content; }
+.contatti-title { font-weight:800; font-size:clamp(4rem,7.2vw,8rem); letter-spacing:-.08em; line-height:.86; margin:0 0 35px; transform:rotate(-1.4deg); max-width:100%; overflow-wrap:break-word; }
+.contatti-title .rossa { display:block; width:max-content; max-width:100%; }
 .contatti-bird { top:.06em; right:-.52em; width:clamp(57px,7vw,105px); transform:rotate(8deg); }
 .contatti-head .contatti-desc { font-size:1.06rem; margin:0; max-width:490px; }
 .contatti-group .contatti-form-area { align-self:end; }
