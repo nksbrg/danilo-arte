@@ -58,11 +58,9 @@
   .hero-bg-ring { position:absolute; z-index:0; width:130px; height:130px; border:12px solid var(--yellow); border-radius:50%; bottom:10%; right:26%; opacity:0.4; transform:rotate(-10deg); }
   .hero-bg-square { position:absolute; z-index:0; width:70px; height:70px; background:var(--blue); opacity:0.35; transform:rotate(25deg); top:42%; left:8%; border:3px solid var(--black); }
   .hero-content { position:relative; z-index:1; }
-  /* Il coccodrillo segue la riga rossa del titolo. */
   .hero-title { font-family:var(--font-display); font-weight:400; text-transform:uppercase; font-size:clamp(3.6rem,10vw,9.5rem); line-height:0.84; letter-spacing:-0.04em; margin-bottom:32px; }
   .hero-title .riga-blu { color:var(--blue); display:block; }
-  .hero-title .riga-rossa { color:var(--red); display:block; width:fit-content; position:relative; }
-  .hero-croc { position:absolute; left:65%; top:5%; transform:translate(-22%,-42%); width:clamp(74px,14vw,164px); height:auto; z-index:3; pointer-events:none; }
+  .hero-title .riga-rossa { color:var(--red); display:block; width:fit-content; }
   .hero-intro { display:flex; flex-direction:column; gap:28px; max-width:420px; }
   .hero-desc { font-family:var(--font-editorial); font-weight:300; text-transform:uppercase; letter-spacing:0.04em; font-size:1rem; line-height:1.5; color:#333; }
   .hero-ctas { display:flex; gap:28px; flex-wrap:wrap; align-items:center; }
@@ -268,7 +266,6 @@
        mobile invariato rispetto a sempre). */
     .gallery { columns:1; --tile-ideale:none; }
     .hero-title { font-size:3rem; }
-    .hero-croc { width:48px; }
     .mosaic-grid { grid-template-rows:repeat(3,100px); gap:6px; }
     .nav-logo { font-size:clamp(1rem,5.2vw,1.35rem); max-width:calc(100vw - 72px); }
     .contatti-bird { width:40px; }
@@ -312,7 +309,7 @@
   <div class="hero-content">
     <h1 class="hero-title">
       <span class="riga-blu">Impara</span>
-      <span class="riga-rossa">L'ARTE<img class="hero-croc" src="assets/visual-identity/characters/crocodile-gripping-r.png" alt="" aria-hidden="true"></span>
+      <span class="riga-rossa">L'ARTE</span>
       <span class="riga-e">E...</span>
     </h1>
     <div class="hero-intro">
